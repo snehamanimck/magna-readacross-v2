@@ -1,0 +1,28 @@
+## Aggregate
+.DS_Store
+*.log
+*.swp
+
+## Frontend
+web/node_modules/
+web/dist/
+web/.angular/
+web/coverage/
+
+## Backend
+api/bin/
+api/obj/
+api/.vs/
+api/*.user
+api/secrets.json
+api/appsettings.*.local.json
+
+## SQL artifacts
+sql/output/
+*.bak
+
+## Editor
+.idea/
+.vscode/*
+!.vscode/launch.json
+!.vscode/settings.json

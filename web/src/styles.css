@@ -1,0 +1,237 @@
+/* -------------------------------------------------------------------------
+ * Magna Read-Across Dashboard — global styles
+ * Implements the Magna "Digi Design System for Internal Web Applications".
+ *
+ * Foundations:
+ *   Typography  : Roboto (primary) → Arial (secondary) → system sans-serif.
+ *   Accent      : Digi Aqua palette (light-mode primary #0E6280).
+ *   Buttons     : Primary #295D6E filled · Hover #295D6E + tint surface
+ *                 #DBEBF1 · Focus #2F8EAA · Disabled #7AB4C6.
+ *   Surface     : Digi Gray F9 page bg, white cards, #F0F0F0 dividers.
+ * ------------------------------------------------------------------------- */
+
+@import 'bootstrap/dist/css/bootstrap.min.css';
+@import '@progress/kendo-theme-bootstrap/dist/all.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* -------------------------------------------------------------------------
+ * Base font scale.
+ *
+ * Bumping the root from the browser default (16 px) to 17.5 px scales every
+ * Tailwind `rem`-based size proportionally (`text-xs` → 13.1 px, `text-sm`
+ * → 15.3 px, `text-base` → 17.5 px, etc.). This keeps spacing utilities
+ * (`p-3`, `gap-4`, …) growing in step with the type — so the dense data
+ * tables breathe a little more on big screens without one-off overrides
+ * scattered across components.
+ * ------------------------------------------------------------------------- */
+html { font-size: 17.5px; }
+
+:root {
+  font-family: Roboto, Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --digi-aqua-1:  #DAEBF1;
+  --digi-aqua-2:  #C6E9F5;
+  --digi-aqua-3:  #8DD3EB;
+  --digi-aqua-4:  #179AC9;
+  --digi-aqua-5:  #5F8C9C;
+  --digi-aqua-6:  #0E6280;
+  --digi-aqua-7:  #334348;
+  --digi-btn-primary:  #295D6E;
+  --digi-btn-focused:  #2F8EAA;
+  --digi-btn-disabled: #7AB4C6;
+  --digi-btn-tint:     #DBEBF1;
+  --digi-gray-f9: #F9F9F9;
+  --digi-gray-f0: #F0F0F0;
+  --digi-gray-d0: #D0D0D0;
+  --digi-gray-ba: #BABABA;
+  --digi-gray-7:  #777777;
+  --digi-gray-3:  #333333;
+  --digi-black:   #111111;
+}
+
+html, body { background: var(--digi-gray-f9); color: var(--digi-black); }
+
+/* Subtler scrollbars to fit the calmer Digi neutral palette. */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--digi-gray-d0); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--digi-gray-ba); }
+
+/* -------------------------------------------------------------------------
+ * Component utilities
+ * ------------------------------------------------------------------------- */
+@layer components {
+
+  /* ---- Surfaces ------------------------------------------------------- */
+  .card {
+    @apply rounded-digi-md border border-gray-f0 bg-white shadow-digi-sm;
+  }
+  .surface-muted {
+    @apply bg-gray-f9 border border-gray-f0;
+  }
+
+  /* ---- Buttons (Digi DS) --------------------------------------------- */
+  /* Base. */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-digi
+           px-4 py-2 text-sm font-medium leading-tight
+           transition-colors duration-150 ease-out
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1
+           disabled:cursor-not-allowed;
+    font-family: Roboto, Arial, sans-serif;
+  }
+
+  /* Primary — solid teal fill. */
+  .btn-primary {
+    @apply btn text-white;
+    background-color: var(--digi-btn-primary);
+  }
+  .btn-primary:hover:not(:disabled)  { background-color: #224F5E; }
+  .btn-primary:focus-visible          { background-color: var(--digi-btn-focused); }
+  .btn-primary:active:not(:disabled)  { background-color: var(--digi-btn-focused); }
+  .btn-primary:disabled               { background-color: var(--digi-btn-disabled); color: #ffffff; }
+
+  /* Secondary — outlined. */
+  .btn-secondary {
+    @apply btn bg-white;
+    color: var(--digi-btn-primary);
+    border: 1px solid var(--digi-btn-primary);
+  }
+  .btn-secondary:hover:not(:disabled) { background-color: var(--digi-btn-tint); }
+  .btn-secondary:focus-visible        { color: var(--digi-btn-primary); border-color: var(--digi-btn-primary); box-shadow: 0 0 0 2px rgba(47,142,170,0.25); }
+  .btn-secondary:active:not(:disabled){ background-color: var(--digi-btn-tint); }
+  .btn-secondary:disabled             { color: var(--digi-btn-disabled); border-color: var(--digi-btn-disabled); background-color: #ffffff; }
+
+  /* Tertiary — ghost / text-only. */
+  .btn-tertiary {
+    @apply btn bg-transparent;
+    color: var(--digi-btn-primary);
+  }
+  .btn-tertiary:hover:not(:disabled)  { background-color: var(--digi-btn-tint); }
+  .btn-tertiary:focus-visible         { color: var(--digi-btn-primary); }
+  .btn-tertiary:active:not(:disabled) { background-color: var(--digi-btn-tint); }
+  .btn-tertiary:disabled              { color: var(--digi-btn-disabled); }
+
+  /* Size variants. */
+  .btn-sm { @apply px-3 py-1.5 text-xs; }
+  .btn-lg { @apply px-5 py-2.5 text-base; }
+  .btn-icon { @apply p-2 rounded-digi-sm; }   /* square icon-only */
+
+  /* ---- Form controls ------------------------------------------------- */
+  .field-label {
+    @apply block text-xs font-semibold uppercase tracking-wide text-gray-6;
+    font-family: Roboto, Arial, sans-serif;
+  }
+  .input,
+  .select,
+  .textarea {
+    @apply block w-full rounded-digi border border-gray-d0 bg-white px-3 py-2
+           text-sm text-gray-1 placeholder:text-gray-7
+           focus:outline-none focus:border-aqua-4
+           focus:ring-2 focus:ring-aqua-4/30
+           disabled:bg-gray-f0 disabled:text-gray-7 disabled:cursor-not-allowed;
+    font-family: Roboto, Arial, sans-serif;
+  }
+
+  /* ---- Pills / chips (filter bar) ------------------------------------ */
+  .pill {
+    @apply inline-flex items-center gap-1 rounded-full px-3 py-1
+           text-xs font-medium leading-tight
+           cursor-pointer select-none border border-transparent
+           transition-colors duration-150;
+    font-family: Roboto, Arial, sans-serif;
+  }
+  .pill-off {
+    @apply bg-white text-gray-3 border-gray-d0;
+  }
+  .pill-off:hover { background-color: var(--digi-btn-tint); border-color: var(--digi-aqua-4); color: var(--digi-btn-primary); }
+
+  .pill-on {
+    @apply text-white border-transparent;
+    background-color: var(--digi-btn-primary);
+  }
+  .pill-on:hover { background-color: #224F5E; }
+
+  /* Workstream-specific pills now share the same Digi Aqua treatment, but
+     keep semantic-color accents to disambiguate workstreams when active. */
+  .pill-cosma-off  { @apply pill-off; }
+  .pill-cosma-on   { background-color: #DC3545; color: #FFFFFF; border-color: transparent; }
+  .pill-pt-off     { @apply pill-off; }
+  .pill-pt-on      { background-color: #155EA9; color: #FFFFFF; border-color: transparent; }
+  .pill-ext-off    { @apply pill-off; }
+  .pill-ext-on     { background-color: #107C10; color: #FFFFFF; border-color: transparent; }
+
+  /* ---- Badges -------------------------------------------------------- */
+  .badge {
+    @apply inline-flex items-center rounded-full px-2 py-0.5 text-[10px]
+           font-semibold uppercase tracking-wide;
+  }
+  .badge-info    { @apply bg-aqua-1 text-aqua-6; }
+  .badge-success { @apply text-white; background-color: #107C10; }
+  .badge-warn    { @apply text-white; background-color: #D83B01; }
+  .badge-danger  { @apply text-white; background-color: #E81123; }
+  .badge-neutral { @apply bg-gray-f0 text-gray-3; }
+
+  /* ---- Tables (Digi DS data grids) ----------------------------------- */
+  .digi-grid {
+    @apply w-full text-sm border-collapse;
+    font-family: Roboto, Arial, sans-serif;
+  }
+  .digi-grid thead th {
+    @apply px-3 py-2 text-left font-semibold text-gray-3 uppercase tracking-wide text-[11px]
+           border-b border-gray-d0 bg-gray-f9;
+  }
+  .digi-grid tbody td {
+    @apply px-3 py-2 border-b border-gray-f0 text-gray-1 text-xs align-top;
+  }
+  .digi-grid tbody tr:hover { background-color: var(--digi-btn-tint); }
+  /* Numerical cells right-aligned (per DS anatomy notes). */
+  .digi-grid .num { @apply text-right tabular-nums; }
+  .digi-grid tfoot td {
+    @apply px-3 py-2 border-t-2 border-gray-d0 bg-gray-f9 text-gray-1 text-xs font-semibold;
+  }
+
+  /* ---- Heatmap-specific gradient cells ------------------------------- */
+  .heat-cell { @apply px-2 py-1.5 text-right tabular-nums whitespace-nowrap; }
+
+  /* ---- Workstream semantic accents -----------------------------------
+     The product uses red/blue/green to discriminate Cosma / Powertrain /
+     Exteriors. We keep that split so dense data stays scannable, but the
+     hue selection is anchored to the Digi semantic palette where
+     possible (Digi Danger 2, Digi Info 3, Digi Success 2).
+     `!important` is necessary so these colors win against the
+     more-specific `.digi-grid tbody td` color rule.                   */
+  .ws-cosma  { color: #DC3545 !important; }
+  .ws-pt     { color: #155EA9 !important; }
+  .ws-ext    { color: #107C10 !important; }
+  .ws-cosma-bg { background-color: #FCE7E9 !important; color: #93000C !important; }
+  .ws-pt-bg    { background-color: #DCE9F7 !important; color: #002143 !important; }
+  .ws-ext-bg   { background-color: #DDEFDD !important; color: #052905 !important; }
+
+  /* ---- Section header rail (Insights category accordions) ------------ */
+  .section-rail {
+    @apply rounded-digi-md px-4 py-3 text-white shadow-digi-sm;
+    background-color: var(--digi-aqua-6);
+  }
+  .section-rail .section-rail-meta { @apply text-xs opacity-80 font-normal; }
+}
+
+/* -------------------------------------------------------------------------
+ * Native dialog — Digi DS dialog overlay style.
+ * ------------------------------------------------------------------------- */
+dialog::backdrop { background: rgba(17, 17, 17, 0.45); }
+dialog {
+  border-radius: 12px;
+  box-shadow: 0 24px 48px rgba(17, 17, 17, 0.24);
+  border: 0;
+  padding: 0;
+  max-width: 90rem;
+  width: calc(100vw - 4rem);
+  max-height: 85vh;
+  background: #ffffff;
+}
+
+/* Tighten Bootstrap's default heading line-height so Roboto reads better. */
+h1, h2, h3, h4, h5 { font-family: Roboto, Arial, sans-serif; letter-spacing: -0.005em; }
