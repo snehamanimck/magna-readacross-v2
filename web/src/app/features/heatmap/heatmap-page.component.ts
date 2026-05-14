@@ -4,7 +4,12 @@ import { Router } from '@angular/router';
 
 import { ReadAcrossAppService } from '@domains/read-across';
 import { IHeatmapCell } from '@app/models';
-import { DrilldownService, FilterService, InitiativeCacheService } from '@app/core-services';
+import {
+  DrilldownService,
+  FilterService,
+  InitiativeCacheService,
+  LeverInsightsService,
+} from '@app/core-services';
 import { FmtDollarPipe, FmtNumPipe } from '../../shared/pipes/format.pipe';
 
 type Mode = 'count' | 'nrb';
@@ -63,8 +68,8 @@ interface RowKey { spendCategory: string; mfgProcess: string; lever: string; sub
       </header>
 
       <!-- KPI summary. Numbers are intentionally large + tabular so the
-           5-card row reads as a "scoreboard" from across the room. -->
-      <section class="grid grid-cols-1 gap-3 md:grid-cols-5">
+           6-card row reads as a "scoreboard" from across the room. -->
+      <section class="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <article class="card p-4">
           <div class="kpi-label">Total Categorized</div>
           <div class="kpi-number text-gray-1">{{ kpiTotal() | fmtNum }}</div>
@@ -84,6 +89,10 @@ interface RowKey { spendCategory: string; mfgProcess: string; lever: string; sub
         <article class="card p-4">
           <div class="kpi-label">Exteriors</div>
           <div class="kpi-number ws-ext">{{ kpiByWs('Exteriors') | fmtNum }}</div>
+        </article>
+        <article class="card p-4">
+          <div class="kpi-label">Seating</div>
+          <div class="kpi-number ws-seat">{{ kpiByWs('Seating') | fmtNum }}</div>
         </article>
       </section>
 
@@ -108,7 +117,8 @@ interface RowKey { spendCategory: string; mfgProcess: string; lever: string; sub
                   <th [attr.colspan]="g.totalSites" class="!text-center !border-l border-gray-d0"
                       [class.ws-cosma-bg]="g.workstream === 'Cosma'"
                       [class.ws-pt-bg]="g.workstream === 'Powertrain'"
-                      [class.ws-ext-bg]="g.workstream === 'Exteriors'">
+                      [class.ws-ext-bg]="g.workstream === 'Exteriors'"
+                      [class.ws-seat-bg]="g.workstream === 'Seating'">
                     {{ g.workstream }} <span class="opacity-70">({{ g.totalSites }})</span>
                   </th>
                 }
@@ -200,6 +210,7 @@ export class HeatmapPageComponent {
   private readonly filterSvc = inject(FilterService);
   private readonly drilldown = inject(DrilldownService);
   private readonly initiatives = inject(InitiativeCacheService);
+  private readonly leverInsights = inject(LeverInsightsService);
   private readonly router = inject(Router);
   private readonly cellsState = signal<IHeatmapCell[] | undefined>(undefined);
 
@@ -313,6 +324,10 @@ export class HeatmapPageComponent {
     else if (workstream === 'Exteriors') {
       label = subgroup.replace(/^Ext\s*[-:]\s*/i, '').trim() || subgroup;
     }
+    // Seating arrives as "Seat - NA" / "Seat - EU" / "Seat - CN".
+    else if (workstream === 'Seating') {
+      label = subgroup.replace(/^Seat\s*[-:]\s*/i, '').trim() || subgroup;
+    }
     // Collapse APAC → AP for tighter PT/Ext column headers.
     if (/^APAC$/i.test(label)) label = 'AP';
     return label;
@@ -409,6 +424,7 @@ export class HeatmapPageComponent {
     if (ws === 'Cosma')      return '#DC3545';
     if (ws === 'Powertrain') return '#155EA9';
     if (ws === 'Exteriors')  return '#107C10';
+    if (ws === 'Seating')    return '#B8860B';
     return '#444444';
   }
 
@@ -493,17 +509,14 @@ export class HeatmapPageComponent {
     });
   }
 
-  /** ★ click on the row title → Insights → Thought Starters w/ prefilter. */
+  /** ★ click on the row title → Lever Insights modal (parity with legacy). */
   openLeverThoughtStarters(row: RowKey): void {
     if (!row.lever) return;
-    void this.router.navigate(['/insights'], {
-      queryParams: {
-        tab: 'thought-starters',
-        lever: row.lever,
-        subLever: row.subLever || undefined,
-        spendCategory: row.spendCategory || undefined,
-      },
-      queryParamsHandling: 'merge',
+    this.leverInsights.open({
+      spendCategory: row.spendCategory || undefined,
+      mfgProcess:    row.mfgProcess    || undefined,
+      lever:         row.lever,
+      subLever:      row.subLever      || undefined,
     });
   }
 

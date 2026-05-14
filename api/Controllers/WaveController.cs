@@ -64,3 +64,23 @@ public class ExteriorsWaveController : ControllerBase
         return row is null ? NotFound() : Ok(row);
     }
 }
+
+[ApiController]
+[Route("api/wave/seating")]
+public class SeatingWaveController : ControllerBase
+{
+    private readonly MagnaDbContext _db;
+    public SeatingWaveController(MagnaDbContext db) => _db = db;
+
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<SeatingWaveInitiative>>> Get(CancellationToken ct)
+        => Ok(await _db.SeatingWaveInitiatives.AsNoTracking().ToListAsync(ct));
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<SeatingWaveInitiative>> GetById(string id, CancellationToken ct)
+    {
+        var row = await _db.SeatingWaveInitiatives.AsNoTracking()
+                          .FirstOrDefaultAsync(x => x.InitiativeId == id, ct);
+        return row is null ? NotFound() : Ok(row);
+    }
+}

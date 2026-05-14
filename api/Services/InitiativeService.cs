@@ -5,12 +5,13 @@ using Microsoft.EntityFrameworkCore;
 namespace MagnaReadAcross.Api.Services;
 
 /// <summary>
-/// Reads the three Wave tables and harmonizes them into a single
-/// <see cref="InitiativeDto"/> list — the schema the Angular client expects.
+/// Reads the four Wave tables (Cosma, Powertrain, Exteriors, Seating) and
+/// harmonizes them into a single <see cref="InitiativeDto"/> list — the
+/// schema the Angular client expects.
 /// </summary>
 public class InitiativeService : IInitiativeService
 {
-    private static readonly string[] Workstreams = { "Cosma", "Powertrain", "Exteriors" };
+    private static readonly string[] Workstreams = { "Cosma", "Powertrain", "Exteriors", "Seating" };
 
     private readonly MagnaDbContext _db;
     public InitiativeService(MagnaDbContext db) => _db = db;
@@ -24,6 +25,7 @@ public class InitiativeService : IInitiativeService
         CancellationToken ct = default)
     {
         var wantsAll = workstreams is null or { Count: 0 };
+        var subgroupLookup = await LoadSubgroupLookupAsync(ct);
 
         var list = new List<InitiativeDto>();
 
@@ -37,7 +39,7 @@ public class InitiativeService : IInitiativeService
                 Description   = c.Description,
                 Workstream    = "Cosma",
                 Site          = c.Site,
-                Subgroup      = SubgroupInferer.Coalesce(c.Subgroup, c.Site, "Cosma"),
+                Subgroup      = SubgroupInferer.Coalesce(c.Subgroup, c.Site, "Cosma", subgroupLookup),
                 Owner         = c.InitiativeOwner,
                 Stage         = c.Stage,
                 Access        = c.Access,
@@ -61,7 +63,7 @@ public class InitiativeService : IInitiativeService
                 Description   = p.Description,
                 Workstream    = "Powertrain",
                 Site          = p.Site,
-                Subgroup      = SubgroupInferer.Coalesce(p.Subgroup, p.Site, "Powertrain"),
+                Subgroup      = SubgroupInferer.Coalesce(p.Subgroup, p.Site, "Powertrain", subgroupLookup),
                 Owner         = p.InitiativeOwner,
                 Stage         = p.Stage,
                 Access        = p.Access,
@@ -84,7 +86,7 @@ public class InitiativeService : IInitiativeService
                 Description   = e.Description,
                 Workstream    = "Exteriors",
                 Site          = e.Division,
-                Subgroup      = SubgroupInferer.Coalesce(e.Subgroup, e.Division, "Exteriors"),
+                Subgroup      = SubgroupInferer.Coalesce(e.Subgroup, e.Division, "Exteriors", subgroupLookup),
                 Owner         = e.InitiativeOwner,
                 Stage         = e.Stage,
                 Access        = e.Access,
@@ -94,6 +96,29 @@ public class InitiativeService : IInitiativeService
                 Lever         = e.Lever,
                 SubLever      = e.SubLever,
                 IsCategorized = e.IsCategorized,
+            }));
+        }
+
+        if (wantsAll || workstreams!.Contains("Seating", StringComparer.OrdinalIgnoreCase))
+        {
+            var seating = await _db.SeatingWaveInitiatives.AsNoTracking().ToListAsync(ct);
+            list.AddRange(seating.Select(s => new InitiativeDto
+            {
+                Id            = s.InitiativeId,
+                Name          = s.Name,
+                Description   = s.Description,
+                Workstream    = "Seating",
+                Site          = s.Site,
+                Subgroup      = SubgroupInferer.Coalesce(s.Subgroup, s.Site, "Seating", subgroupLookup),
+                Owner         = s.InitiativeOwner,
+                Stage         = s.Stage,
+                Access        = s.Access,
+                Nrb           = s.Nrb ?? 0,
+                SpendCategory = s.SpendCategory,
+                MfgProcess    = s.MfgProcess,
+                Lever         = s.Lever,
+                SubLever      = s.SubLever,
+                IsCategorized = s.IsCategorized,
             }));
         }
 
@@ -164,8 +189,97 @@ public class InitiativeService : IInitiativeService
             .ToList();
     }
 
+    public async Task<IReadOnlyList<SubgroupCoverageDto>> GetSubgroupCoverageAsync(CancellationToken ct = default)
+    {
+        var subgroupLookup = await LoadSubgroupLookupAsync(ct);
+
+        var cosmaRows = await _db.CosmaWaveInitiatives
+            .AsNoTracking()
+            .Select(x => new { Entity = x.Site, x.Subgroup })
+            .ToListAsync(ct);
+
+        var powertrainRows = await _db.PowertrainWaveInitiatives
+            .AsNoTracking()
+            .Select(x => new { Entity = x.Site, x.Subgroup })
+            .ToListAsync(ct);
+
+        var exteriorsRows = await _db.ExteriorsWaveInitiatives
+            .AsNoTracking()
+            .Select(x => new { Entity = x.Division, x.Subgroup })
+            .ToListAsync(ct);
+
+        var seatingRows = await _db.SeatingWaveInitiatives
+            .AsNoTracking()
+            .Select(x => new { Entity = x.Site, x.Subgroup })
+            .ToListAsync(ct);
+
+        return new List<SubgroupCoverageDto>
+        {
+            BuildCoverage("Cosma", cosmaRows, subgroupLookup, r => r.Entity, r => r.Subgroup),
+            BuildCoverage("Powertrain", powertrainRows, subgroupLookup, r => r.Entity, r => r.Subgroup),
+            BuildCoverage("Exteriors", exteriorsRows, subgroupLookup, r => r.Entity, r => r.Subgroup),
+            BuildCoverage("Seating", seatingRows, subgroupLookup, r => r.Entity, r => r.Subgroup)
+        };
+    }
+
     private static IReadOnlyList<string> SplitCsv(string? csv) =>
         string.IsNullOrWhiteSpace(csv)
             ? Array.Empty<string>()
             : csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private async Task<Dictionary<string, string>> LoadSubgroupLookupAsync(CancellationToken ct)
+    {
+        var rows = await _db.SubgroupEntityMap
+            .AsNoTracking()
+            .Where(x => x.IsActive)
+            .ToListAsync(ct);
+
+        var lookup = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var row in rows)
+        {
+            lookup[SubgroupInferer.BuildKey(row.Workstream, row.EntityName)] = row.Subgroup;
+        }
+
+        return lookup;
+    }
+
+    private static SubgroupCoverageDto BuildCoverage<TRow>(
+        string workstream,
+        IEnumerable<TRow> rows,
+        IReadOnlyDictionary<string, string> subgroupLookup,
+        Func<TRow, string?> entitySelector,
+        Func<TRow, string?> subgroupSelector)
+    {
+        var buffered = rows
+            .Select(r => (Entity: entitySelector(r), Subgroup: subgroupSelector(r)))
+            .ToList();
+
+        var missingStored = buffered.Count(r => string.IsNullOrWhiteSpace(r.Subgroup));
+
+        var unresolved = buffered
+            .Where(r =>
+            {
+                var effective = SubgroupInferer.Coalesce(r.Subgroup, r.Entity, workstream, subgroupLookup);
+                return string.IsNullOrWhiteSpace(effective);
+            })
+            .ToList();
+
+        var unmappedEntities = unresolved
+            .Select(r => r.Entity)
+            .Where(e => !string.IsNullOrWhiteSpace(e))
+            .Cast<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(e => e)
+            .Take(50)
+            .ToList();
+
+        return new SubgroupCoverageDto
+        {
+            Workstream = workstream,
+            TotalRows = buffered.Count,
+            MissingStoredSubgroupRows = missingStored,
+            MissingEffectiveSubgroupRows = unresolved.Count,
+            UnmappedEntities = unmappedEntities
+        };
+    }
 }

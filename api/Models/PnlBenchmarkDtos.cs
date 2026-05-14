@@ -45,6 +45,16 @@ public record PnlBenchmarksDto
     /// <summary>Map of site → archetype keys (one site can carry many archetypes).</summary>
     public IReadOnlyDictionary<string, IReadOnlyList<string>> SiteArchetypes { get; init; }
         = new Dictionary<string, IReadOnlyList<string>>();
+
+    /// <summary>
+    /// Optional monthly P&amp;L panel per site (revenue, labor_qty, costs[*]).
+    /// Powers the per-site "Relevant cost base" sizing on the
+    /// P&amp;L-Informed Recommendations cards (mirrors legacy
+    /// <c>_getSiteCostBase</c>: trailing-3-month avg of
+    /// labour_benefits + wages + variable_moh + scrap, annualized).
+    /// </summary>
+    public IReadOnlyDictionary<string, PnlMonthlyPanelDto> MonthlyPnl { get; init; }
+        = new Dictionary<string, PnlMonthlyPanelDto>();
 }
 
 public record PnlArchetypeDefinitionDto
@@ -85,4 +95,32 @@ public record PnlRankEntryDto
 {
     public string   Site  { get; init; } = string.Empty;
     public decimal? Value { get; init; }
+}
+
+/// <summary>
+/// Monthly P&amp;L time-series panel for a single Cosma site (sourced from
+/// legacy <c>pnl_benchmarking.monthly_pnl[site]</c>).
+///
+/// We project only the cost series the SPA needs for sizing P&amp;L-Informed
+/// Recommendations (mirrors legacy <c>_getSiteCostBase</c>: trailing-3-month
+/// average of labour_benefits + wages + variable_moh + scrap, annualized).
+/// The legacy <c>revenue</c> / <c>labor_qty</c> blocks are nested objects
+/// (production / other / total) and are intentionally NOT modelled here so
+/// the deserializer doesn't need a recursive shape; the SPA only consumes
+/// <see cref="Costs"/>.
+/// </summary>
+public record PnlMonthlyPanelDto
+{
+    public IReadOnlyList<string>   Months   { get; init; } = Array.Empty<string>();
+    public PnlMonthlyCostsDto      Costs    { get; init; } = new();
+}
+
+public record PnlMonthlyCostsDto
+{
+    public IReadOnlyList<decimal?> LabourBenefits      { get; init; } = Array.Empty<decimal?>();
+    public IReadOnlyList<decimal?> Wages               { get; init; } = Array.Empty<decimal?>();
+    public IReadOnlyList<decimal?> ProductionMaterials { get; init; } = Array.Empty<decimal?>();
+    public IReadOnlyList<decimal?> FixedMoh            { get; init; } = Array.Empty<decimal?>();
+    public IReadOnlyList<decimal?> VariableMoh         { get; init; } = Array.Empty<decimal?>();
+    public IReadOnlyList<decimal?> Scrap               { get; init; } = Array.Empty<decimal?>();
 }

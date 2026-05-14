@@ -9,13 +9,13 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+import { CommonModule, NgClass } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 
 import {
+  IInitiative,
   IKnowledgeCenterAsset,
   IPnlBenchmarks,
-  IPnlRecommendation,
   IThoughtStarter,
   IVideoLibraryAsset,
 } from '@app/models';
@@ -24,6 +24,9 @@ import {
   DashboardChromeService,
   DrilldownService,
   InitiativeCacheService,
+  IPnlRecCard,
+  ISiteCostBase,
+  PnlRecService,
 } from '@app/core-services';
 import { FmtDollarPipe } from '../../shared/pipes/format.pipe';
 import { PnlBenchmarkingComponent } from './pnl-benchmarking.component';
@@ -44,7 +47,7 @@ const SPEND_CATS: SpendCat[] = ['DL', 'IDL', 'MC', 'VOH'];
  */
 @Component({
   standalone: true,
-  imports: [CommonModule, FmtDollarPipe, PnlBenchmarkingComponent],
+  imports: [CommonModule, NgClass, FmtDollarPipe, PnlBenchmarkingComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="flex flex-col gap-5">
@@ -96,7 +99,7 @@ const SPEND_CATS: SpendCat[] = ['DL', 'IDL', 'MC', 'VOH'];
                 </p>
               </header>
 
-              <!-- Subgroup pill row -->
+              <!-- Subgroup pill row (regions: APAC, Brazil, Canada, …) -->
               <div class="flex items-center gap-1.5 flex-wrap">
                 <span class="text-[11px] font-medium text-gray-6 mr-1">Subgroup:</span>
                 <button type="button" class="pill"
@@ -111,95 +114,153 @@ const SPEND_CATS: SpendCat[] = ['DL', 'IDL', 'MC', 'VOH'];
                 }
               </div>
 
-              @if (pnlRecommendations() === undefined) {
+              <!-- "How it works" methodology disclosure -->
+              <div>
+                <button type="button"
+                        class="text-[11px] text-magna-red font-medium hover:underline"
+                        (click)="recsHowItWorksOpen.set(!recsHowItWorksOpen())"
+                        [attr.aria-expanded]="recsHowItWorksOpen()"
+                        aria-controls="pnl-rec-methodology">
+                  How it works {{ recsHowItWorksOpen() ? '▴' : '▾' }}
+                </button>
+                @if (recsHowItWorksOpen()) {
+                  <div id="pnl-rec-methodology"
+                       class="mt-2 p-4 rounded-digi border border-gray-f0 bg-gray-f9 text-[12px]
+                              text-gray-3 leading-relaxed max-w-3xl">
+                    <p class="font-semibold text-gray-1 mb-2">How recommendations are generated</p>
+                    <p class="mb-2">
+                      Each recommendation points to a specific heatmap row — a unique combination of
+                      spend category, manufacturing process, lever, and sub-lever. For
+                      <strong>DL</strong> rows, a site must match its archetype's typical
+                      manufacturing processes <em>and</em> have at least one categorized Cosma DL
+                      initiative in that manufacturing process. The engine scores every eligible row
+                      using a weighted composite of five factors:
+                    </p>
+                    <ul class="list-disc ml-4 mb-2 space-y-1">
+                      <li><strong>NRB opportunity (35%)</strong> — estimated dollar opportunity scaled to
+                        the site's cost base; rows with larger achievable NRB rank higher regardless
+                        of whitespace status.</li>
+                      <li><strong>P&amp;L relevance (20%)</strong> — rows aligned to the site's weakest
+                        P&amp;L ratios (labor, VOH, scrap) are prioritized.</li>
+                      <li><strong>Archetype match (15%)</strong> — rows where sites of the same archetype
+                        have meaningful activity are weighted higher.</li>
+                      <li><strong>NRB shortfall (15%)</strong> — how far the site's NRB lags the peer
+                        median in that row; whitespace and under-represented rows both contribute
+                        proportionally.</li>
+                      <li><strong>Region / subgroup match (10%)</strong> — peer presence within the
+                        same subgroup adds relevance.</li>
+                      <li><strong>Whitespace bonus (+5%)</strong> — small tiebreaker for rows where the
+                        site has zero initiatives.</li>
+                    </ul>
+                    <p>
+                      <strong>Opportunity sizing:</strong> Peer NRB is scaled by the ratio of the
+                      site's relevant cost base (Production L&amp;B + Wages + VOH + Scrap, trailing 3
+                      months × 12) to the peer cost base, with a reasonableness discount of 60% for
+                      whitespace rows and 40% for under-represented rows.
+                    </p>
+                  </div>
+                }
+              </div>
+
+              @if (pnlBenchmarks() === undefined || initiatives() === undefined) {
                 <div class="text-sm text-gray-7">Loading recommendations…</div>
-              } @else if (recsFiltered().length === 0) {
+              } @else if (recSiteGroups().length === 0) {
                 <div class="card p-12 text-sm text-gray-7 text-center">
-                  No recommendations match the current subgroup.
+                  No Cosma sites match the current subgroup.
                 </div>
               } @else {
+                <div class="text-[11px] text-gray-6">
+                  {{ recSiteGroups().length }} of {{ recsAllSiteCount() }} Cosma sites shown
+                </div>
+
                 <div class="flex flex-col gap-4">
-                  @for (siteGroup of recsBySite(); track siteGroup.site) {
-                    <article class="card p-4">
-                      <div class="flex items-center gap-2 flex-wrap">
-                        <h3 class="text-base font-bold text-gray-1">{{ siteGroup.site }}</h3>
-                        @if (siteGroup.archetype) {
-                          <span class="badge badge-info">{{ siteGroup.archetype }}</span>
+                  @for (sg of recSiteGroups(); track sg.site) {
+                    <article class="card overflow-hidden">
+                      <header class="px-5 py-3 bg-gray-f9 border-b border-gray-f0
+                                     flex items-center gap-3 flex-wrap">
+                        <h3 class="text-base font-bold text-gray-1">{{ sg.site }}</h3>
+                        @if (sg.subgroup) {
+                          <span class="text-[11px] text-gray-6">{{ sg.subgroup }}</span>
                         }
-                      </div>
-                      <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-                        @for (rec of siteGroup.recs.slice(0, 3); track rec.pnlRecommendationId; let i = $index) {
-                          <div class="rounded-digi border border-gray-f0 bg-white p-3 hover:shadow-digi transition-shadow flex flex-col">
-                            <div class="flex items-start gap-2">
-                              <span class="rec-rank-badge"
-                                    [class.ws-cosma-bg]="rec.workstream === 'Cosma'"
-                                    [class.ws-pt-bg]="rec.workstream === 'Powertrain'"
-                                    [class.ws-ext-bg]="rec.workstream === 'Exteriors'">
-                                {{ i + 1 }}
-                              </span>
-                              <div class="flex-1 min-w-0">
-                                <div class="flex items-center gap-1.5 flex-wrap">
-                                  <span class="badge badge-info" style="text-transform:none">
-                                    {{ rec.workstream }}
-                                  </span>
-                                  @if (rec.archetype) {
-                                    <span class="badge badge-neutral" style="text-transform:none"
-                                          title="Anchor archetype">
-                                      {{ rec.archetype }}
-                                    </span>
-                                  }
-                                  @if (rec.initiativeId && chrome.isPriority(rec.initiativeId)) {
-                                    <span class="inline-flex items-center gap-1 text-[10px] font-semibold
-                                                 px-1.5 py-0.5 rounded-full"
-                                          style="color:#047857;background-color:#ECFDF5"
-                                          title="Source initiative is a Best Practice candidate">
-                                      <svg class="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20"
-                                           aria-hidden="true">
-                                        <path fill-rule="evenodd"
-                                              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75
-                                                 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06
-                                                 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
-                                              clip-rule="evenodd" />
-                                      </svg>
-                                      Best Practice
-                                    </span>
-                                  } @else {
-                                    <span class="text-[10px] text-success-2 font-semibold uppercase">
-                                      True whitespace
-                                    </span>
-                                  }
-                                </div>
-                                <p class="mt-2 text-sm text-gray-1 leading-snug">
-                                  {{ rec.recommendationText }}
-                                </p>
-                                <div class="mt-2 text-[11px] text-gray-6">
-                                  <span class="font-bold text-aqua-6 tabular-nums">
-                                    {{ rec.opportunityAmount ?? 0 | fmtDollar }}
-                                  </span>
-                                  est. achievable opportunity
-                                </div>
+                        @if (sg.archetype) {
+                          <span class="px-1.5 py-0.5 rounded text-[10px] font-medium
+                                       bg-aqua-1 text-aqua-6 border border-aqua-3">
+                            {{ sg.archetype }}
+                          </span>
+                        }
+                        @if (sg.costBase) {
+                          <span class="text-[10px] text-gray-7 ml-auto">
+                            Relevant cost base: <span class="tabular-nums">{{ sg.costBase.annualized | fmtDollar }}</span>/yr
+                          </span>
+                        }
+                      </header>
+
+                      @if (sg.recs.length === 0) {
+                        <div class="px-5 py-6 text-center text-sm text-gray-7">
+                          Insufficient peer data to generate heatmap-row recommendations for this site.
+                        </div>
+                      } @else {
+                        <div class="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0
+                                    md:divide-x divide-gray-f0">
+                          @for (rec of sg.recs; track rec.row.key) {
+                            <div class="px-4 py-4 flex flex-col gap-2"
+                                 [class.cursor-pointer]="rec.drillInits.length > 0"
+                                 [class.hover:bg-gray-f9]="rec.drillInits.length > 0"
+                                 (click)="openRecDrill(sg, rec)">
+                              <div class="flex items-center gap-2 flex-wrap">
+                                <span class="rec-rank-pip">{{ rec.rank }}</span>
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                                      [ngClass]="recScClass(rec.row.sc)">
+                                  {{ rec.row.sc }}
+                                </span>
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-medium border"
+                                      [ngClass]="rec.isWhitespace
+                                        ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                                        : 'text-amber-700 bg-amber-50 border-amber-200'">
+                                  {{ rec.isWhitespace ? 'True whitespace' : 'Under-represented lever' }}
+                                </span>
                               </div>
+
+                              <div class="font-semibold text-sm text-gray-1 leading-snug">
+                                {{ recBreadcrumb(rec.row) }}
+                              </div>
+
+                              @if (rec.opportunity > 0) {
+                                <div class="flex items-center gap-1.5">
+                                  <span class="text-xs font-bold text-emerald-700 tabular-nums">
+                                    {{ rec.opportunity | fmtDollar }}
+                                  </span>
+                                  <span class="text-[10px] text-gray-7">est. achievable opportunity</span>
+                                </div>
+                              }
+
+                              @if (!rec.isWhitespace && rec.siteCount > 0) {
+                                <div class="text-[10px] text-gray-6">
+                                  Site has {{ rec.siteCount }} initiative{{ rec.siteCount === 1 ? '' : 's' }}
+                                  ({{ rec.siteNrb | fmtDollar }} NRB) vs. peer median
+                                  {{ rec.peerMedianNrb | fmtDollar }}
+                                </div>
+                              }
+
+                              <div class="flex items-center gap-2">
+                                <div class="flex-1 h-1.5 rounded-full bg-gray-f0 overflow-hidden">
+                                  <div class="h-full rounded-full bg-aqua-6"
+                                       [style.width.%]="recPeerBarPct(rec)"></div>
+                                </div>
+                                <span class="text-[11px] font-semibold text-gray-3 whitespace-nowrap">
+                                  {{ rec.totalPeerCount }} peer sites ({{ rec.archPeerCount }} same archetype)
+                                </span>
+                              </div>
+
+                              @if (rec.drillInits.length > 0) {
+                                <div class="text-[10px] text-gray-7">
+                                  {{ rec.drillInits.length }} targeted initiatives • click to explore
+                                </div>
+                              }
                             </div>
-                            <button type="button"
-                                    class="mt-3 inline-flex items-center justify-center gap-1
-                                           text-[11px] font-semibold text-aqua-6 hover:underline
-                                           disabled:cursor-not-allowed disabled:text-gray-9
-                                           disabled:hover:no-underline self-start"
-                                    [disabled]="!rec.initiativeId"
-                                    [title]="rec.initiativeId
-                                      ? 'Open the supporting initiative in the drilldown'
-                                      : 'No source initiative linked to this recommendation'"
-                                    (click)="openRecommendationDrill(rec)">
-                              Open in drilldown
-                              <svg class="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor"
-                                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                                   aria-hidden="true">
-                                <path d="M6 3h7v7" /><path d="m13 3-8 8" />
-                              </svg>
-                            </button>
-                          </div>
-                        }
-                      </div>
+                          }
+                        </div>
+                      }
                     </article>
                   }
                 </div>
@@ -418,15 +479,19 @@ const SPEND_CATS: SpendCat[] = ['DL', 'IDL', 'MC', 'VOH'];
   `,
   styles: [`
     :host { display: block; }
-    .rec-rank-badge {
+    .rec-rank-pip {
+      /* Numbered chip on each P&L recommendation card. Matches the
+         legacy magna-red circle from \`renderPnlRecommendations\`. */
       display: inline-flex;
       align-items: center;
       justify-content: center;
       width: 22px;
       height: 22px;
       border-radius: 9999px;
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 700;
+      background-color: #C8102E;
+      color: #FFFFFF;
       flex-shrink: 0;
     }
     .line-clamp-3 {
@@ -458,7 +523,8 @@ export class InsightsPageComponent implements AfterViewInit {
   readonly spendCategories = SPEND_CATS;
 
   // Per-tab state.
-  readonly recSubgroup  = signal<string>('');
+  readonly recSubgroup       = signal<string>('');
+  readonly recsHowItWorksOpen = signal<boolean>(false);
   readonly tsCategory   = signal<SpendCat | ''>('');
   readonly kcCategory   = signal<SpendCat | ''>('');
   readonly vlCategory   = signal<SpendCat | ''>('');
@@ -466,7 +532,7 @@ export class InsightsPageComponent implements AfterViewInit {
   // Server-loaded data.
   /** Curated P&L benchmarks blob (53 Cosma + PT + Exteriors sites). */
   readonly pnlBenchmarks = signal<IPnlBenchmarks | undefined>(undefined);
-  readonly pnlRecommendations = signal<IPnlRecommendation[] | undefined>(undefined);
+  readonly initiatives   = signal<readonly IInitiative[] | undefined>(undefined);
   readonly thoughtStarters = signal<IThoughtStarter[] | undefined>(undefined);
   readonly knowledgeAssets = signal<IKnowledgeCenterAsset[] | undefined>(undefined);
   readonly videoAssets = signal<IVideoLibraryAsset[] | undefined>(undefined);
@@ -478,33 +544,43 @@ export class InsightsPageComponent implements AfterViewInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly drilldown = inject(DrilldownService);
   private readonly initiativeCache = inject(InitiativeCacheService);
+  private readonly pnlRecs = inject(PnlRecService);
   protected readonly chrome = inject(DashboardChromeService);
 
   // ---- P&L Recommendations helpers -------------------------------------
-  readonly recSubgroups = computed(() => {
+
+  /**
+   * Compute every Cosma site's top-3 recommendations by replaying the
+   * legacy `_computeSiteRecommendations` algorithm in TypeScript. Cached on
+   * the bench/inits inputs so the heavy heatmap-row index isn't rebuilt on
+   * every subgroup-pill click.
+   */
+  private readonly recsAllSites = computed(() => {
+    const bench = this.pnlBenchmarks();
+    const inits = this.initiatives();
+    if (!bench || !inits) return [];
+    return this.pnlRecs.computeAll(bench, inits);
+  });
+
+  /** Distinct subgroups across all Cosma sites — drives the pill row. */
+  readonly recSubgroups = computed<string[]>(() => {
     const set = new Set<string>();
-    for (const r of this.pnlRecommendations() ?? []) if (r.archetype) set.add(r.archetype);
+    for (const sg of this.recsAllSites()) {
+      if (sg.subgroup) set.add(sg.subgroup);
+    }
     return Array.from(set).sort();
   });
-  readonly recsFiltered = computed(() => {
+
+  /** Cosma sites visible after the subgroup filter is applied. */
+  readonly recSiteGroups = computed(() => {
     const sg = this.recSubgroup();
-    return (this.pnlRecommendations() ?? []).filter(r => !sg || r.archetype === sg);
+    const all = this.recsAllSites();
+    if (!sg) return all;
+    return all.filter(s => s.subgroup === sg);
   });
-  readonly recsBySite = computed(() => {
-    const map = new Map<string, { site: string; archetype?: string; recs: IPnlRecommendation[] }>();
-    for (const rec of this.recsFiltered()) {
-      let group = map.get(rec.site);
-      if (!group) {
-        group = { site: rec.site, archetype: rec.archetype, recs: [] };
-        map.set(rec.site, group);
-      }
-      group.recs.push(rec);
-    }
-    for (const g of map.values()) {
-      g.recs.sort((a, b) => (a.priorityRank ?? 99) - (b.priorityRank ?? 99));
-    }
-    return Array.from(map.values());
-  });
+
+  /** Total Cosma site count for the "X of Y Cosma sites shown" header. */
+  readonly recsAllSiteCount = computed(() => this.recsAllSites().length);
 
   // ---- Thought Starter helpers ------------------------------------------
   readonly tsFiltered = computed(() => {
@@ -546,29 +622,67 @@ export class InsightsPageComponent implements AfterViewInit {
   });
 
   /**
-   * Open the drilldown dialog for the source initiative behind a P&L
-   * recommendation, with the rec context (opportunity $, archetype, source
-   * text) pinned above the table. No-op for recs without an `initiativeId`.
+   * Open the drilldown dialog seeded with the recommendation's targeted peer
+   * initiatives (legacy `_selectDrilldownInits`). The site-card context is
+   * pinned above the table so the user can see why these initiatives matter.
    */
-  async openRecommendationDrill(rec: IPnlRecommendation): Promise<void> {
-    const id = rec.initiativeId;
-    if (!id) return;
-    const all = await this.initiativeCache.getAllAsync();
-    const match = all.find(i => i.id === id);
-    const items = match ? [match] : [];
+  openRecDrill(
+    sg: { site: string; archetype?: string; subgroup?: string; costBase?: ISiteCostBase },
+    rec: IPnlRecCard,
+  ): void {
+    if (rec.drillInits.length === 0) return;
+    const breadcrumb = this.recBreadcrumb(rec.row);
+    const oppText = rec.isWhitespace ? 'True whitespace' : 'Under-represented lever';
     this.drilldown.open({
-      title: `Initiative · ${id}`,
-      subtitle: match?.name,
-      items,
+      title: `${sg.site} · ${breadcrumb}`,
+      subtitle: rec.drillInits.length === 1
+        ? '1 targeted initiative'
+        : `${rec.drillInits.length} targeted initiatives`,
+      items: rec.drillInits,
+      context: {
+        spendCategory: rec.row.sc || undefined,
+        mfgProcess:    rec.row.mp || undefined,
+        lever:         rec.row.lv || undefined,
+        subLever:      rec.row.sl || undefined,
+        site:          sg.site,
+        workstream:    'Cosma',
+      },
       pnlContext: {
-        workstream: rec.workstream,
-        site: rec.site,
-        archetype: rec.archetype,
-        opportunityAmount: rec.opportunityAmount,
-        recommendationText: rec.recommendationText,
-        priorityRank: rec.priorityRank,
+        workstream:        'Cosma',
+        site:              sg.site,
+        archetype:         sg.archetype,
+        opportunityAmount: rec.opportunity,
+        recommendationText: `${oppText} — ${rec.totalPeerCount} peer sites (${rec.archPeerCount} same archetype)`,
+        priorityRank:      rec.rank,
       },
     });
+  }
+
+  /** Renders a heatmap row's breadcrumb path (sc › mp › lv › sl). */
+  recBreadcrumb(row: IPnlRecCard['row']): string {
+    return [row.sc, row.mp, row.lv, row.sl].filter(Boolean).join(' \u203A ');
+  }
+
+  /** Tailwind classes for the spend-category badge on each rec card. */
+  recScClass(sc: string): string {
+    switch (sc) {
+      case 'DL':                    return 'bg-blue-100 text-blue-800';
+      case 'IDL':                   return 'bg-purple-100 text-purple-800';
+      case 'VOH':                   return 'bg-amber-100 text-amber-800';
+      case 'MC':
+      case 'Material Conveyance':   return 'bg-green-100 text-green-800';
+      default:                      return 'bg-gray-f0 text-gray-3';
+    }
+  }
+
+  /**
+   * Width of the peer-progress bar = `archPeerCount / totalPeerCount`.
+   * Clamped to [0,100] so a degenerate row with zero peers doesn't blow up.
+   */
+  recPeerBarPct(rec: IPnlRecCard): number {
+    return Math.min(100, Math.round(
+      (rec.archPeerCount / Math.max(1, rec.totalPeerCount)) * 100,
+    ));
   }
 
   // Map a "Material Conveyance" → "MC" so pill labels stay tight.
@@ -584,7 +698,7 @@ export class InsightsPageComponent implements AfterViewInit {
 
   constructor() {
     void this.loadPnlBenchmarksAsync();
-    void this.loadPnlRecommendationsAsync();
+    void this.loadInitiativesAsync();
     void this.loadThoughtStartersAsync();
     void this.loadKnowledgeAssetsAsync();
     void this.loadVideoAssetsAsync();
@@ -598,12 +712,17 @@ export class InsightsPageComponent implements AfterViewInit {
         if (this.isTab(tab)) this.active.set(tab);
         const cat = this.shortCat(params.get('spendCategory') ?? undefined);
         if (cat) this.tsCategory.set(cat);
-        const lever = params.get('lever') ?? '';
-        this.highlightedLever.set(lever);
-        if (lever) {
+        // The buckets / heatmap pages emit `lever` plus an optional
+        // `subLever`. Compose the most specific available value so the
+        // scroll target matches the lever row in the rendered tree.
+        const lever    = params.get('lever') ?? '';
+        const subLever = params.get('subLever') ?? '';
+        const target   = subLever || lever;
+        this.highlightedLever.set(target);
+        if (target) {
           // Re-fire scroll once the levers render. queueMicrotask isn't
           // enough — the data may still be loading from the API.
-          this.scrollToLeverWhenReady(lever);
+          this.scrollToLeverWhenReady(target);
         }
       });
   }
@@ -617,8 +736,10 @@ export class InsightsPageComponent implements AfterViewInit {
     this.pnlBenchmarks.set(await this.appService.getPnlBenchmarksAsync());
   }
 
-  private async loadPnlRecommendationsAsync(): Promise<void> {
-    this.pnlRecommendations.set(await this.appService.getPnlRecommendationsAsync());
+  private async loadInitiativesAsync(): Promise<void> {
+    // Re-uses the shared cache that the heatmap / buckets pages already
+    // populate, so navigating here doesn't trigger a duplicate network call.
+    this.initiatives.set(await this.initiativeCache.getAllAsync());
   }
 
   private async loadThoughtStartersAsync(): Promise<void> {

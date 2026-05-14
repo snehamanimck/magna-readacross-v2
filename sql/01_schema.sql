@@ -163,6 +163,62 @@ CREATE INDEX IX_ExteriorsWave_Division      ON readacross.ExteriorsWaveInitiativ
 GO
 
 /* ──────────────────────────────────────────────────────────────────────────
+   Seating Wave (parity with legacy /magna-readacross/public/index.html)
+   ────────────────────────────────────────────────────────────────────────── */
+IF OBJECT_ID('readacross.SeatingWaveInitiatives', 'U') IS NOT NULL
+    DROP TABLE readacross.SeatingWaveInitiatives;
+GO
+
+CREATE TABLE readacross.SeatingWaveInitiatives
+(
+    InitiativeId          NVARCHAR(64)   NOT NULL CONSTRAINT PK_SeatingWave PRIMARY KEY,
+    Name                  NVARCHAR(512)  NULL,
+    Description           NVARCHAR(MAX)  NULL,
+    Stage                 NVARCHAR(64)   NULL,
+    Access                NVARCHAR(64)   NULL,
+    InitiativeOwner       NVARCHAR(256)  NULL,
+    Site                  NVARCHAR(128)  NULL,  -- "<NA|EU|CN*> - <Site>"
+    Subgroup              NVARCHAR(64)   NULL,  -- Seat - NA / Seat - EU / Seat - CN
+    SpendCategory         NVARCHAR(64)   NULL,
+    MfgProcess            NVARCHAR(64)   NULL,
+    Lever                 NVARCHAR(256)  NULL,
+    SubLever              NVARCHAR(256)  NULL,
+    Nrb                   DECIMAL(20,2)  NULL,
+    IsCategorized         BIT            NOT NULL CONSTRAINT DF_SeatingWave_IsCat DEFAULT (1),
+    LoadedAtUtc           DATETIME2(0)   NOT NULL CONSTRAINT DF_SeatingWave_LoadedAt DEFAULT (SYSUTCDATETIME())
+);
+GO
+
+CREATE INDEX IX_SeatingWave_SpendCategory ON readacross.SeatingWaveInitiatives (SpendCategory);
+CREATE INDEX IX_SeatingWave_Site          ON readacross.SeatingWaveInitiatives (Site);
+GO
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Subgroup mapping table (self-maintained source for hierarchy alignment)
+   ────────────────────────────────────────────────────────────────────────── */
+IF OBJECT_ID('readacross.SubgroupEntityMap', 'U') IS NOT NULL
+    DROP TABLE readacross.SubgroupEntityMap;
+GO
+
+CREATE TABLE readacross.SubgroupEntityMap
+(
+    SubgroupEntityMapId BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_SubgroupEntityMap PRIMARY KEY,
+    Workstream          NVARCHAR(64)  NOT NULL,   -- Cosma / Powertrain / Exteriors
+    EntityName          NVARCHAR(128) NOT NULL,   -- Site (Cosma/PT) or Division (Exteriors)
+    Subgroup            NVARCHAR(64)  NOT NULL,
+    IsActive            BIT           NOT NULL CONSTRAINT DF_SubgroupEntityMap_IsActive DEFAULT (1),
+    Notes               NVARCHAR(256) NULL,
+    UpdatedAtUtc        DATETIME2(0)  NOT NULL CONSTRAINT DF_SubgroupEntityMap_UpdatedAt DEFAULT (SYSUTCDATETIME()),
+    CONSTRAINT UQ_SubgroupEntityMap_Workstream_Entity UNIQUE (Workstream, EntityName)
+);
+GO
+
+CREATE INDEX IX_SubgroupEntityMap_Workstream_Subgroup
+    ON readacross.SubgroupEntityMap (Workstream, Subgroup)
+    WHERE IsActive = 1;
+GO
+
+/* ──────────────────────────────────────────────────────────────────────────
    Mapping + Insights support tables (align to original ETL outputs)
    ────────────────────────────────────────────────────────────────────────── */
 IF OBJECT_ID('readacross.ArchetypeDefinitions', 'U') IS NOT NULL
@@ -221,7 +277,7 @@ CREATE TABLE readacross.ThoughtStarters
     Lever              NVARCHAR(256)  NULL,
     SubLever           NVARCHAR(256)  NULL,
     [Text]             NVARCHAR(MAX)  NOT NULL,
-    AdvancedAutomation BIT            NOT NULL CONSTRAINT DF_ThoughtStarters_AdvAuto DEFAULT (0),
+    AdvancedAutomation NVARCHAR(128)  NULL,  -- legacy: free-text label such as "Cobot load/unload" or "Camera inspect"
     IsActive           BIT            NOT NULL CONSTRAINT DF_ThoughtStarters_IsActive DEFAULT (1),
     SortOrder          INT            NOT NULL CONSTRAINT DF_ThoughtStarters_Sort DEFAULT (100)
 );
@@ -321,5 +377,29 @@ CREATE INDEX IX_DashboardSnapshots_Section_Generated
     ON readacross.DashboardSnapshots (SectionKey, GeneratedAtUtc DESC);
 GO
 
-PRINT 'Schema readacross created with Pnl/Wave + mapping/insights + snapshot tables.';
+/* ──────────────────────────────────────────────────────────────────────────
+   AccessPolicyAssignments — drives the per-tab access gate enforced by
+   `AccessPolicyService` / `[Authorize]` controllers (most importantly the
+   P&L Benchmarking endpoints). One row per Azure AD group that has been
+   granted any non-default tabs. The Admin group is configured separately
+   via `appsettings.json:AccessControl.AdminGroupObjectId` and is not
+   stored here. A missing table caused the entire `/api/Pnl/*` surface to
+   500 with `Invalid object name 'readacross.AccessPolicyAssignments'`,
+   so the schema MUST always create it (even if empty).
+   ────────────────────────────────────────────────────────────────────────── */
+IF OBJECT_ID('readacross.AccessPolicyAssignments', 'U') IS NOT NULL
+    DROP TABLE readacross.AccessPolicyAssignments;
+GO
+
+CREATE TABLE readacross.AccessPolicyAssignments
+(
+    GroupObjectId   NVARCHAR(64)   NOT NULL CONSTRAINT PK_AccessPolicyAssignments PRIMARY KEY,
+    DisplayName     NVARCHAR(256)  NOT NULL CONSTRAINT DF_AccessPolicyAssignments_DisplayName DEFAULT (N''),
+    AllowedTabsJson NVARCHAR(MAX)  NOT NULL CONSTRAINT DF_AccessPolicyAssignments_AllowedTabs DEFAULT (N'[]'),
+    UpdatedBy       NVARCHAR(256)  NOT NULL CONSTRAINT DF_AccessPolicyAssignments_UpdatedBy DEFAULT (N'system'),
+    UpdatedAt       DATETIMEOFFSET NOT NULL CONSTRAINT DF_AccessPolicyAssignments_UpdatedAt DEFAULT (SYSDATETIMEOFFSET())
+);
+GO
+
+PRINT 'Schema readacross created with Pnl/Wave + subgroup/mapping/insights + snapshot + access-policy tables.';
 GO

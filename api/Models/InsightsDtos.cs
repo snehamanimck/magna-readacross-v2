@@ -8,7 +8,13 @@ public record ThoughtStarterDto
     public string? Lever { get; init; }
     public string? SubLever { get; init; }
     public string Text { get; init; } = string.Empty;
-    public bool AdvancedAutomation { get; init; }
+    /// <summary>
+    /// Free-text "Advanced Automation" label from the legacy dashboard
+    /// (e.g. "Cobot load/unload", "Camera inspect"). Rendered as a
+    /// secondary pill on the Lever Insights dialog. <c>null</c> /
+    /// empty when the thought-starter has no automation tag.
+    /// </summary>
+    public string? AdvancedAutomation { get; init; }
     public int SortOrder { get; init; }
 }
 

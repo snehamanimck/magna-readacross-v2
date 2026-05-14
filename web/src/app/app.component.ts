@@ -5,6 +5,7 @@ import { FilterBarComponent } from './shared/components/filter-bar/filter-bar.co
 import { DrilldownDialogComponent } from './shared/components/drilldown-dialog/drilldown-dialog.component';
 import { ArchetypeLegendDialogComponent } from './shared/components/archetype-legend-dialog/archetype-legend-dialog.component';
 import { DataQualityDialogComponent } from './shared/components/data-quality-dialog/data-quality-dialog.component';
+import { LeverInsightsDialogComponent } from './shared/components/lever-insights-dialog/lever-insights-dialog.component';
 import { DashboardChromeService } from '@app/core-services';
 
 /**
@@ -25,6 +26,7 @@ import { DashboardChromeService } from '@app/core-services';
     DrilldownDialogComponent,
     ArchetypeLegendDialogComponent,
     DataQualityDialogComponent,
+    LeverInsightsDialogComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -36,6 +38,7 @@ import { DashboardChromeService } from '@app/core-services';
     <mra-drilldown-dialog></mra-drilldown-dialog>
     <mra-archetype-legend-dialog></mra-archetype-legend-dialog>
     <mra-data-quality-dialog></mra-data-quality-dialog>
+    <mra-lever-insights-dialog></mra-lever-insights-dialog>
   `,
 })
 export class AppComponent {

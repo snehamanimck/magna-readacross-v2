@@ -7,7 +7,12 @@ services:
     ports:
       - "5080:8080"
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
+      # Run as Development locally so the access-policy gate falls back to
+      # full access when no user is authenticated (the legacy `index.html`
+      # has no auth at all). In production this is `Production` and access
+      # is enforced via `readacross.AccessPolicyAssignments`.
+      ASPNETCORE_ENVIRONMENT: Development
+      AccessControl__BypassAuthInDevelopment: "true"
       Cors__AllowedOrigins: http://localhost:4200
       # Wire API to the already-seeded local SQL Server container on host port 14333.
       ConnectionStrings__AzureSqlDb: Server=host.docker.internal,14333;Database=MagnaReadAcross;User Id=sa;Password=Magna#Seed2026!;Encrypt=False;TrustServerCertificate=True;Connection Timeout=30;

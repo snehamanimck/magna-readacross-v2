@@ -23,6 +23,8 @@ Initiative Overview, Heatmap, Insights, and Feedback experiences.
   - [readacross.CosmaWaveInitiatives](#readacrosscosmawaveinitiatives)
   - [readacross.PowertrainWaveInitiatives](#readacrosspowertrainwaveinitiatives)
   - [readacross.ExteriorsWaveInitiatives](#readacrossexteriorswaveinitiatives)
+  - [readacross.SeatingWaveInitiatives](#readacrossseatingwaveinitiatives)
+  - [readacross.SubgroupEntityMap](#readacrosssubgroupentitymap)
   - [readacross.ArchetypeDefinitions / SiteArchetypes / PriorityInitiatives](#readacrossarchetypedefinitions--sitearchetypes--priorityinitiatives)
   - [readacross.ThoughtStarters](#readacrossthoughtstarters)
   - [readacross.PnlRecommendations](#readacrosspnlrecommendations)
@@ -87,9 +89,11 @@ magna-readacross-v2/
 │   ├── 04_seed_mapping_insights.sql Archetypes / SiteArchetypes / Insights
 │   ├── 05_backfill_subgroups.sql   Idempotent UPDATE filling Subgroup
 │   │                               on the 3 Wave tables (post-ingest)
-│   └── 06_seed_priority_initiatives.sql
-│                                   Top-NRB rows per workstream → demo
-│                                   Best Practice Candidate flags
+│   ├── 06_seed_priority_initiatives.sql
+│   │                               Top-NRB rows per workstream → demo
+│   │                               Best Practice Candidate flags
+│   └── 07_seed_subgroup_entity_map.sql
+│                                   Baseline site/division → subgroup seed
 ├── scripts/                Python ingestion + media sync
 ├── docker-compose.yml      Spins up api + web; bind-mounts real
 │                           video/slide assets into the web container
@@ -109,18 +113,28 @@ sqlcmd -S localhost,14333 -U sa -P 'Magna#Seed2026!' -d MagnaReadAcross \
 # 2. (Optional) Refresh from the legacy artifacts (Wave Excel, slides, videos)
 make ingest
 
-# 3. Backfill the Subgroup column + seed demo Best Practice candidates.
-#    These two scripts are idempotent and safe to re-run after every
-#    `make ingest`; they read the harmonized Wave tables and:
-#      05 → UPDATE Subgroup on Cosma / Powertrain / Exteriors rows
+# 3. Seed managed subgroup mappings + backfill Subgroup + seed demo Best Practice candidates.
+#    These four scripts are idempotent and safe to re-run after every `make ingest`:
+#      07 → INSERT missing baseline rows into SubgroupEntityMap (no overwrite)
+#      05 → UPDATE Subgroup on Cosma / Powertrain / Exteriors / Seating rows
 #      06 → INSERT top 5 NRB rows per workstream into PriorityInitiatives
+#      08 → INSERT 343 Seating Wave initiatives mirroring the legacy
+#           dashboard_data.json (idempotent — DELETE + INSERT)
 sqlcmd -S localhost,14333 -U sa -P 'Magna#Seed2026!' -d MagnaReadAcross \
+       -i sql/07_seed_subgroup_entity_map.sql \
+       -i sql/08_seed_seating_wave.sql \
        -i sql/05_backfill_subgroups.sql \
        -i sql/06_seed_priority_initiatives.sql
 
 # 4. Build + start the API and SPA
 make build
 make up
+
+# Handy Make targets while iterating:
+#   make seed-seating-wave   # apply sql/08_seed_seating_wave.sql + backfill subgroups
+#   make backfill-subgroups  # rerun sql/05_backfill_subgroups.sql against all 4 wave tables
+#   make coverage            # GET /api/Initiatives/subgroups/coverage (pretty-print)
+#   make sql-shell           # interactive sqlcmd inside the SQL container
 
 # Visit
 #   http://localhost:4200   Angular SPA
@@ -136,12 +150,15 @@ Below is a column-level reference plus a representative seed row for each table
 (taken verbatim from `sql/02_seed_pnl.sql`, `sql/03_seed_wave.sql`,
 `sql/04_seed_mapping_insights.sql`).
 
-Two additional **idempotent** scripts run after every full reload to keep
+Three additional **idempotent** scripts run after every full reload to keep
 the SPA's filter rail and Best Practice chips populated:
 
+- `sql/07_seed_subgroup_entity_map.sql` — INSERTs the baseline curated
+  site/division → subgroup mappings into `SubgroupEntityMap` (without
+  overwriting rows your team already maintains).
 - `sql/05_backfill_subgroups.sql` — UPDATEs `Subgroup` on the three Wave
-  tables using the legacy site → subgroup map (Cosma) or the
-  `<region> - <site>` prefix (Powertrain / Exteriors).
+  tables using `SubgroupEntityMap` first, then falls back to deterministic
+  prefix parsing for Powertrain/Exteriors.
 - `sql/06_seed_priority_initiatives.sql` — TRUNCATE + INSERT the top 5 NRB
   rows per workstream into `PriorityInitiatives` so the green Best Practice
   chip on Insights cards has a real demo subset.
@@ -238,6 +255,40 @@ values: `Ext - AP` / `Ext - EU` / `Ext - NA`.
 | ------------ | --------------------------------- | ----- | -------- | -------- | ------------- | ---------- | ----------- | ------- |
 | EX-3001      | Troy paint line cycle time         | L4    | Troy USA | Ext - NA | DL            | E-coat     | Cycle time  | 980,000 |
 
+### `readacross.SeatingWaveInitiatives`
+
+Seating Wave initiative export. Same shape as Powertrain — sites are written
+in the legacy `"<NA|EU|CN*> - <Site>"` format so the prefix-fallback
+inferer can map a row to one of the three Seating subgroups
+(`Seat - NA` / `Seat - EU` / `Seat - CN`) when an explicit
+`SubgroupEntityMap` row is not yet maintained. Seating initiative IDs do
+not have a Wave deep-link, so the drilldown renders them as plain text
+(parity with the legacy `magna-readacross/public/index.html`).
+
+**Sample row**
+
+| InitiativeId | Name                                | Stage | Site            | Subgroup    | SpendCategory | MfgProcess     | Lever                  | Nrb     |
+| ------------ | ----------------------------------- | ----- | --------------- | ----------- | ------------- | -------------- | ---------------------- | ------- |
+| SE-4001      | Foam line scrap reduction (NA)      | L3    | NA - Highland   | Seat - NA   | DL            | Foam molding   | Scrap & yield          | 540,000 |
+| SE-4101      | Trim cell takt time uplift (CN)     | L4    | CN-East - Suzhou| Seat - CN   | DL            | Trim assembly  | Cycle time             | 380,000 |
+
+### `readacross.SubgroupEntityMap`
+
+Managed lookup table for entity (site/division) → subgroup assignments. This is
+the table to update when hierarchy changes are introduced each quarter.
+
+| Column               | Type               | Notes                                                     |
+| -------------------- | ------------------ | --------------------------------------------------------- |
+| SubgroupEntityMapId  | `BIGINT IDENTITY`  | PK                                                        |
+| Workstream           | `NVARCHAR(64)`     | `Cosma` / `Powertrain` / `Exteriors` / `Seating`         |
+| EntityName           | `NVARCHAR(128)`    | Site (Cosma/PT/Seating) or Division (Exteriors)          |
+| Subgroup             | `NVARCHAR(64)`     | Canonical subgroup label shown in filter options          |
+| IsActive             | `BIT`              | Soft enable/disable mapping rows                          |
+| Notes                | `NVARCHAR(256)`    | Optional maintenance comment                              |
+| UpdatedAtUtc         | `DATETIME2(0)`     | Last row update timestamp (default `SYSUTCDATETIME()`)   |
+
+Unique key: (`Workstream`, `EntityName`).
+
 ### `readacross.ArchetypeDefinitions` / `SiteArchetypes` / `PriorityInitiatives`
 
 Mapping tables that drive the archetype filter pills, site-archetype
@@ -282,7 +333,7 @@ heatmap uses.
 | MfgProcess         | `NVARCHAR(64)`  |                                             |
 | Lever / SubLever   | `NVARCHAR(256)` |                                             |
 | Text               | `NVARCHAR(MAX)` | Prompt text                                 |
-| AdvancedAutomation | `BIT`           | UI badge for advanced-automation prompts    |
+| AdvancedAutomation | `NVARCHAR(128)` | Free-text "Advanced Automation" label (e.g. `Cobot load/unload`, `Camera inspect`) — surfaced as a secondary pill in the Lever Insights dialog. `NULL` when not tagged. |
 | IsActive           | `BIT`           | Soft-delete flag                            |
 | SortOrder          | `INT`           |                                             |
 
@@ -412,6 +463,9 @@ GET /api/Initiatives/filter-options
 
 GET /api/Initiatives/subgroups
 → 200 SubgroupDto[]
+
+GET /api/Initiatives/subgroups/coverage
+→ 200 SubgroupCoverageDto[]
 ```
 
 ```ts
@@ -420,11 +474,11 @@ GET /api/Initiatives/subgroups
   id: string;                      // "10154"
   name?: string;
   description?: string;
-  workstream: 'Cosma' | 'Powertrain' | 'Exteriors';
-  site?: string;                   // "BGM" / "APAC - MPJ" / "EU - Liberec"
-  subgroup?: string;               // "USA East" / "PT - APAC" / "Ext - EU"
+  workstream: 'Cosma' | 'Powertrain' | 'Exteriors' | 'Seating';
+  site?: string;                   // "BGM" / "APAC - MPJ" / "EU - Liberec" / "NA - Highland"
+  subgroup?: string;               // "USA East" / "PT - APAC" / "Ext - EU" / "Seat - NA"
                                    // — sourced from the Subgroup column,
-                                   //   populated by sql/05_backfill_subgroups.sql
+                                   //   populated via SubgroupEntityMap + sql/05_backfill_subgroups.sql
   owner?: string;
   stage?: string;                  // "L3 (Planned)"
   access?: string;                 // "Open" | "Restricted" | "General" | "Confidential"
@@ -440,12 +494,12 @@ GET /api/Initiatives/subgroups
 
 // FilterOptionsDto — distinct values for every global filter pill
 {
-  workstreams: string[];           // ["Cosma", "Powertrain", "Exteriors"]
+  workstreams: string[];           // ["Cosma", "Powertrain", "Exteriors", "Seating"]
   spendCategories: string[];       // ["DL", "IDL", "Material Conveyance", "VOH"]
   stages: string[];                // ["L2 (Validated)", …, "Submitted for L3 approval"]
-  subgroups: string[];             // 15 entries: 9 Cosma + 3 PT + 3 Ext
+  subgroups: string[];             // 18 entries: 9 Cosma + 3 PT + 3 Ext + 3 Seat
   archetypes: string[];            // 7 Cosma archetype keys
-  sites: string[];                 // every Site/Division across the 3 Wave tables
+  sites: string[];                 // every Site/Division across the 4 Wave tables
 }
 
 // SubgroupDto (api/Models/SubgroupDto.cs) — one row per (Workstream, Subgroup)
@@ -454,6 +508,15 @@ GET /api/Initiatives/subgroups
   workstream: string;              // "Cosma"
   initiativeCount: number;         // 142
   sites: string[];                 // ["Autolaunch", "BGM", "CBAM", "Eagle Bend", "Vehtek"]
+}
+
+// SubgroupCoverageDto (api/Models/SubgroupCoverageDto.cs) — hierarchy maintenance health check
+{
+  workstream: string;                  // "Cosma"
+  totalRows: number;                   // 810
+  missingStoredSubgroupRows: number;   // 4
+  missingEffectiveSubgroupRows: number;// 1
+  unmappedEntities: string[];          // ["New Site Name"]
 }
 ```
 
@@ -480,6 +543,7 @@ GET /api/Aggregates/heatmap?workstream=Cosma
     Cosma:      { count: 142, nrb: 2_100_000 },
     Powertrain: { count:  61, nrb: 1_300_000 },
     Exteriors:  { count:  50, nrb:   900_000 },
+    Seating:    { count:  18, nrb:   320_000 },
   }
 }
 
@@ -531,6 +595,8 @@ GET /api/wave/powertrain            → 200 PowertrainWaveInitiative[]
 GET /api/wave/powertrain/{id}       → 200 | 404
 GET /api/wave/exteriors             → 200 ExteriorsWaveInitiative[]
 GET /api/wave/exteriors/{id}        → 200 | 404
+GET /api/wave/seating               → 200 SeatingWaveInitiative[]
+GET /api/wave/seating/{id}          → 200 | 404
 ```
 
 These return the EF entity shape 1:1 (column casing → camelCase via the JSON
@@ -604,6 +670,7 @@ field names in camelCase and an `I` prefix on every interface
 | `InitiativeDto`              | `IInitiative`                 | `api/Models/InitiativeDto.cs`            |
 | `FilterOptionsDto`           | `IFilterOptions`              | `api/Models/FilterOptionsDto.cs`         |
 | `SubgroupDto`                | `ISubgroup`                   | `api/Models/SubgroupDto.cs`              |
+| `SubgroupCoverageDto`        | _(admin endpoint; no SPA type today)_ | `api/Models/SubgroupCoverageDto.cs` |
 | `BucketRowDto`               | `IBucketRow`                  | `api/Models/BucketRowDto.cs`             |
 | `HeatmapCellDto`             | `IHeatmapCell`                | `api/Models/HeatmapCellDto.cs`           |
 | `PnlEntry`                   | `IPnlEntry`                   | `api/Entities/PnlEntry.cs` (raw entity)  |
@@ -626,6 +693,7 @@ field names in camelCase and an `I` prefix on every interface
 | GET    | `/api/Initiatives`                          | `InitiativeDto[]`                    |
 | GET    | `/api/Initiatives/filter-options`           | `FilterOptionsDto`                   |
 | GET    | `/api/Initiatives/subgroups`                | `SubgroupDto[]` (new)                |
+| GET    | `/api/Initiatives/subgroups/coverage`       | `SubgroupCoverageDto[]`              |
 | GET    | `/api/Aggregates/buckets`                   | `BucketRowDto[]`                     |
 | GET    | `/api/Aggregates/heatmap`                   | `HeatmapCellDto[]`                   |
 | GET    | `/api/Pnl`                                  | `PnlEntry[]` (raw, capped at 5000)   |
@@ -649,8 +717,8 @@ empty in the SPA.
 
 | DTO                          | Backing table(s)                                   | Populated by                                            |
 | ---------------------------- | -------------------------------------------------- | ------------------------------------------------------- |
-| `InitiativeDto`              | `CosmaWaveInitiatives`, `PowertrainWaveInitiatives`, `ExteriorsWaveInitiatives` | `03_seed_wave.sql` + `make ingest` |
-| `InitiativeDto.subgroup`     | (same)                                             | `05_backfill_subgroups.sql` (post-ingest)               |
+| `InitiativeDto`              | `CosmaWaveInitiatives`, `PowertrainWaveInitiatives`, `ExteriorsWaveInitiatives`, `SeatingWaveInitiatives` | `03_seed_wave.sql` + `make ingest` |
+| `InitiativeDto.subgroup`     | (same) + `SubgroupEntityMap`                       | `07_seed_subgroup_entity_map.sql` + `05_backfill_subgroups.sql` (post-ingest) |
 | `InitiativeDto.archetypes`   | `CosmaWaveInitiatives.Archetypes` (CSV)            | `03_seed_wave.sql` / `make ingest` (Cosma only today)   |
 | `FilterOptionsDto`           | derived from the harmonized initiative list        | (computed in `InitiativeService.GetFilterOptionsAsync`) |
 | `SubgroupDto`                | derived from `Subgroup` column on Wave tables      | (computed in `InitiativeService.GetSubgroupsAsync`)     |
@@ -671,23 +739,25 @@ The Wave Excel exports do not currently track Subgroup. The chain that
 populates the SPA pill row is:
 
 ```
-Wave Excel export  ──ingest──▶  readacross.{Cosma,Powertrain,Exteriors}WaveInitiatives
+Wave Excel export  ──ingest──▶  readacross.{Cosma,Powertrain,Exteriors,Seating}WaveInitiatives
                                   │  (Subgroup column = NULL)
                                   ▼
+readacross.SubgroupEntityMap     ◀──maintain──  quarterly hierarchy updates
+                                  │             (source-of-truth mapping table)
+                                  ▼
 sql/05_backfill_subgroups.sql    ──UPDATE──▶  Subgroup populated authoritatively:
-                                  │             • Cosma sites → curated map
-                                  │               (USA East / Canada / Mexico /
-                                  │                Cosma EU / Casting and UK /
-                                  │                USA South / Brazil /
-                                  │                Cosma APAC / USA West)
-                                  │             • Powertrain → "PT - <prefix>"
-                                  │             • Exteriors  → "Ext - <prefix>"
+                                  │             • Cosma: explicit map rows
+                                  │             • PT/Ext: explicit map rows first
+                                  │               + prefix fallback ("PT - *", "Ext - *")
+                                  │             • Seating: explicit map rows first
+                                  │               + prefix fallback ("NA"/"EU"/"CN*"
+                                  │               → "Seat - NA/EU/CN")
                                   ▼
 api/Services/InitiativeService.GetAllAsync
                                   │  reads Subgroup raw from DB; if a row
-                                  │  was loaded after the backfill ran and
                                   │  is still NULL, SubgroupInferer.Coalesce
-                                  │  fills it in-process as a safety net
+                                  │  consults SubgroupEntityMap first, then
+                                  │  PT/Ext/Seat prefix fallback as safety net
                                   ▼
 GET /api/Initiatives/subgroups            (one row per pair, with site list)
 GET /api/Initiatives/filter-options       (.subgroups: string[])
@@ -698,6 +768,55 @@ SPA FilterService / FilterBar (Subgroup pill row)
 SPA pnl-benchmarking.component (subgroup peer set)
 SPA drilldown subtitle / CSV export
 ```
+
+### Legacy parity notes (vs `magna-readacross/public/index.html`)
+
+The v2 SPA + API target full functional parity with the legacy
+single-file dashboard at `magna-readacross/public/index.html`. The notable
+behaviours that have moved over are:
+
+- **Four workstreams** — `Cosma`, `Powertrain`, `Exteriors`, **`Seating`**.
+  Seating uses the legacy prefix rules (`NA` → `Seat - NA`, `EU` →
+  `Seat - EU`, `CN*` → `Seat - CN`) and renders initiative IDs as plain
+  text in the drilldown (no Wave deep-link analogue exists).
+- **Workstream colour accents** — Cosma red, PT blue, Ext green, Seating
+  amber. Filter pills, KPI cards, heatmap workstream bands and the data
+  quality dialog all share the same palette.
+- **Subgroup pill row** — explicit-map first (`SubgroupEntityMap`), then
+  prefix fallback for PT/Ext/Seating; `Unmapped` is intentionally never
+  shown as a pill.
+- **Insights deep-links** — buckets/heatmap pass `tab`, `lever`,
+  `subLever`, and `spendCategory`; the Insights page now consumes
+  `subLever` as the most specific scroll target.
+- **Lever Insights modal** — the ★ next to a lever in
+  Buckets/Heatmap opens a focused dialog with three tabs (Thought
+  Starters / Knowledge Center / Video Library), each pre-filtered to
+  the lever's `{spendCategory, mfgProcess, lever, subLever}` slice and
+  showing a count badge per tab. Filter semantics match the legacy
+  `getThoughtStarters` / `getMatchingSlides` / `getMatchingVideos`
+  helpers (asset-empty fields are wildcards; `Revenue` excluded;
+  `spendCat || lever` required). Header crumbs use the legacy `›` glyph
+  and rows render the legacy amber numbered chip + breadcrumb pill +
+  Advanced Automation pill.
+- **Thought-starter Advanced Automation labels** — `ThoughtStarters
+  .AdvancedAutomation` is now `NVARCHAR(128)` (was `BIT`) so the
+  Lever Insights dialog can render the original free-text tag
+  (`Cobot load/unload`, `Camera inspect`, `Inspect - AI for weld
+  integrity`, …) instead of a generic on/off badge — matching the
+  offline dashboard exactly.
+- **Feedback recipient** — the mailto address comes from
+  `dashboard-config.feedbackEmail` (via `DashboardChromeService.feedbackEmail`)
+  so DevOps can re-target the form without a code change.
+- **Confidential rows** — drilldown table hides `access === 'Confidential'`
+  rows, banner shows the suppressed count, and the CSV export omits them.
+  Mirrors the legacy "Confidential rows excluded" treatment.
+- **Best-practice / priority IDs** — `PriorityInitiatives` table feeds
+  `DashboardChromeService.isPriority`; drilldown rows render a green check
+  next to flagged initiatives.
+- **Buckets / heatmap KPI cards** — show all four workstreams (Cosma /
+  Powertrain / Exteriors / Seating) and the buckets pivot grid renders
+  four sub-columns (Cosma / PT / Ext / Seat) under each of the
+  `Count`, `% of Total`, and `NRB` super-columns.
 
 ---
 
@@ -1024,6 +1143,104 @@ make down                  # docker compose down
 make logs                  # tail compose logs
 make ingest                # sync media + reload SQL from original artifacts
 make ingest-and-restart    # ingest + rebuild api/web
+```
+
+### Local SQL Server connection (for ad-hoc inspection)
+
+The dev SQL container (`magna-readacross-sql`, image
+`mcr.microsoft.com/mssql/server:2022-latest`) is exposed on the host via
+`docker-compose.yml`. Use these credentials from any SQL client running
+on your laptop:
+
+| Setting        | Value                                  |
+|----------------|----------------------------------------|
+| Server / Host  | `localhost`                            |
+| Port           | `14333`                                |
+| Auth type      | SQL Server Authentication              |
+| Username       | `sa`                                   |
+| Password       | `Magna#Seed2026!`                      |
+| Database       | `MagnaReadAcross`                      |
+| Encrypt / TLS  | Optional — accept self-signed cert     |
+
+Common clients:
+
+```text
+# Azure Data Studio / SSMS connection string
+Server=localhost,14333;Database=MagnaReadAcross;User Id=sa;Password=Magna#Seed2026!;TrustServerCertificate=True;
+
+# JDBC (DBeaver / IntelliJ)
+jdbc:sqlserver://localhost:14333;databaseName=MagnaReadAcross;user=sa;password=Magna#Seed2026!;trustServerCertificate=true
+
+# .NET / EF Core (matches api/appsettings.json default)
+Server=localhost,14333;Database=MagnaReadAcross;User Id=sa;Password=Magna#Seed2026!;TrustServerCertificate=True;Encrypt=False;
+```
+
+Quick `sqlcmd` checks (uses the in-container tooling so no host install
+is needed):
+
+```bash
+make sql-shell             # interactive sqlcmd inside the SQL container
+make coverage              # GET /api/Initiatives/subgroups/coverage (pretty-printed JSON)
+
+# Ad-hoc one-liner from the host shell
+docker exec -i magna-readacross-sql /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Magna#Seed2026!' -d MagnaReadAcross -C -Q \
+  "SELECT TOP 5 InitiativeId, Name, Subgroup FROM readacross.SeatingWaveInitiatives;"
+```
+
+> The password contains a `#` — quote it (`'Magna#Seed2026!'`) in shells
+> or escape it (`Magna\#Seed2026!`) inside `Makefile` recipes, otherwise
+> the rest of the value is parsed as a comment.
+
+### Quarterly hierarchy update runbook
+
+When MAGNAUR hierarchy/entity lists change, treat `readacross.SubgroupEntityMap`
+as the maintained source and then re-apply the backfill:
+
+```sql
+-- 1) Upsert mapping changes from the latest hierarchy package.
+--    (Example row-level maintenance)
+MERGE readacross.SubgroupEntityMap AS target
+USING (VALUES
+    (N'Cosma', N'New Site Name', N'USA East', 1, N'Q3 hierarchy update')
+) AS source(Workstream, EntityName, Subgroup, IsActive, Notes)
+    ON target.Workstream = source.Workstream
+   AND target.EntityName = source.EntityName
+WHEN MATCHED THEN
+    UPDATE SET Subgroup = source.Subgroup,
+               IsActive = source.IsActive,
+               Notes = source.Notes,
+               UpdatedAtUtc = SYSUTCDATETIME()
+WHEN NOT MATCHED BY TARGET THEN
+    INSERT (Workstream, EntityName, Subgroup, IsActive, Notes)
+    VALUES (source.Workstream, source.EntityName, source.Subgroup, source.IsActive, source.Notes);
+```
+
+```bash
+# 2) Re-apply subgroup backfill and refresh priority badges.
+sqlcmd -S localhost,14333 -U sa -P 'Magna#Seed2026!' -d MagnaReadAcross \
+       -i sql/05_backfill_subgroups.sql \
+       -i sql/06_seed_priority_initiatives.sql
+```
+
+```sql
+-- 3) Verify no unmapped rows remain.
+SELECT 'Cosma' AS Workstream, COUNT(*) AS Unmapped
+FROM readacross.CosmaWaveInitiatives
+WHERE Subgroup IS NULL OR Subgroup = N''
+UNION ALL
+SELECT 'Powertrain', COUNT(*)
+FROM readacross.PowertrainWaveInitiatives
+WHERE Subgroup IS NULL OR Subgroup = N''
+UNION ALL
+SELECT 'Exteriors', COUNT(*)
+FROM readacross.ExteriorsWaveInitiatives
+WHERE Subgroup IS NULL OR Subgroup = N'';
+```
+
+```bash
+# 4) API-level verification (includes fallback logic + unresolved entity names)
+curl "http://localhost:5080/api/Initiatives/subgroups/coverage"
 ```
 
 Local dev (without Docker):

@@ -18,6 +18,7 @@ public class DashboardConfigOptions
     public WorkstreamMetaOptions? CosmaMeta { get; set; }
     public WorkstreamMetaOptions? PowertrainMeta { get; set; }
     public WorkstreamMetaOptions? ExteriorsMeta { get; set; }
+    public WorkstreamMetaOptions? SeatingMeta { get; set; }
 }
 
 public class WorkstreamMetaOptions

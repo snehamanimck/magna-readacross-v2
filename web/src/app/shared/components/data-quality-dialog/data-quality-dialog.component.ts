@@ -14,7 +14,7 @@ import { IWorkstreamMeta } from '@app/models';
 import { DashboardChromeService } from '@app/core-services';
 
 interface IPanelMeta {
-  workstream: 'Cosma' | 'Powertrain' | 'Exteriors';
+  workstream: 'Cosma' | 'Powertrain' | 'Exteriors' | 'Seating';
   accent: string;
   meta?: IWorkstreamMeta;
 }
@@ -195,11 +195,18 @@ export class DataQualityDialogComponent implements AfterViewInit {
 
   readonly panels = computed<IPanelMeta[]>(() => {
     const cfg = this.chrome.config();
-    return [
+    const panels: IPanelMeta[] = [
       { workstream: 'Cosma',      accent: '#93000C', meta: cfg?.cosmaMeta },
       { workstream: 'Powertrain', accent: '#155EA9', meta: cfg?.powertrainMeta },
       { workstream: 'Exteriors',  accent: '#107C10', meta: cfg?.exteriorsMeta },
     ];
+    // Seating only renders when the API ships a `seatingMeta` block; this
+    // mirrors the legacy app, which omits Seating from the data-quality
+    // strip until rows are actually loaded.
+    if (cfg?.seatingMeta) {
+      panels.push({ workstream: 'Seating', accent: '#B8860B', meta: cfg.seatingMeta });
+    }
+    return panels;
   });
 
   readonly generatedDisplay = computed(() => {

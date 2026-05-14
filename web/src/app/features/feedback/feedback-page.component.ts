@@ -3,10 +3,11 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import { ReadAcrossAppService } from '@domains/read-across';
+import { DashboardChromeService } from '@app/core-services';
 
 interface IFeedbackForm {
   type: '' | 'bug' | 'idea' | 'data-issue' | 'general';
-  page: '' | 'buckets' | 'heatmap' | 'insights' | 'feedback';
+  page: 'general' | 'buckets' | 'heatmap' | 'insights' | 'feedback';
   initiativeId: string;
   site: string;
   description: string;
@@ -15,7 +16,7 @@ interface IFeedbackForm {
 }
 
 const EMPTY_FORM: IFeedbackForm = {
-  type: '', page: '', initiativeId: '', site: '', description: '', name: '', priority: '',
+  type: '', page: 'general', initiativeId: '', site: '', description: '', name: '', priority: '',
 };
 
 /**
@@ -27,20 +28,24 @@ const EMPTY_FORM: IFeedbackForm = {
   imports: [CommonModule, FormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="flex flex-col gap-6 max-w-3xl">
+    <div class="flex flex-col gap-4 max-w-[760px] mx-auto w-full">
       <header>
-        <h1 class="text-2xl font-bold text-gray-1 tracking-tight">Give Feedback</h1>
-        <p class="mt-1 text-sm text-gray-6">
-          Spotted a data issue, have an idea, or seeing something off? Tell us about it.
+        <h1 class="text-[30px] font-bold text-gray-1 tracking-tight">Give Feedback</h1>
+        <p class="mt-1 text-[13px] text-gray-6">
+          Your feedback helps us improve the dashboard. Clicking Submit will open a pre-filled
+          email in your email client.
         </p>
       </header>
 
-      <form class="card p-6 space-y-5" (ngSubmit)="submit()">
+      <form class="card p-5 space-y-4" (ngSubmit)="submit()">
         <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
           <label class="block">
-            <span class="field-label">Type<span class="text-danger-3 ml-0.5">*</span></span>
-            <select required name="type" [(ngModel)]="form().type" class="select mt-1.5">
-              <option value="">— Select —</option>
+            <span class="field-label">Feedback type<span class="text-danger-3 ml-0.5">*</span></span>
+            <select required name="type"
+                    [ngModel]="form().type"
+                    (ngModelChange)="patchForm('type', $event)"
+                    class="select mt-1.5">
+              <option value="">Select feedback type...</option>
               <option value="bug">Bug / data error</option>
               <option value="idea">Feature idea</option>
               <option value="data-issue">Data issue</option>
@@ -48,10 +53,13 @@ const EMPTY_FORM: IFeedbackForm = {
             </select>
           </label>
 
-          <label class="block">
-            <span class="field-label">Page<span class="text-danger-3 ml-0.5">*</span></span>
-            <select required name="page" [(ngModel)]="form().page" class="select mt-1.5">
-              <option value="">— Select —</option>
+          <label class="block md:col-span-2">
+            <span class="field-label">Which page does this relate to?</span>
+            <select name="page"
+                    [ngModel]="form().page"
+                    (ngModelChange)="patchForm('page', $event)"
+                    class="select mt-1.5">
+              <option value="general">General / not page-specific</option>
               <option value="buckets">Initiative Overview</option>
               <option value="heatmap">Heatmap</option>
               <option value="insights">Insights &amp; Inspiration</option>
@@ -60,35 +68,50 @@ const EMPTY_FORM: IFeedbackForm = {
           </label>
 
           <label class="block">
-            <span class="field-label">Initiative ID <span class="normal-case font-normal text-gray-7">(optional)</span></span>
-            <input name="initiativeId" [(ngModel)]="form().initiativeId" class="input mt-1.5"
-                   placeholder="e.g., INIT-12345" />
+            <span class="field-label">Initiative ID</span>
+            <input name="initiativeId"
+                   [ngModel]="form().initiativeId"
+                   (ngModelChange)="patchForm('initiativeId', $event)"
+                   class="input mt-1.5"
+                   placeholder="e.g., 12194" />
           </label>
 
           <label class="block">
             <span class="field-label">Site</span>
-            <select name="site" [(ngModel)]="form().site" class="select mt-1.5">
-              <option value="">— Any —</option>
+            <select name="site"
+                    [ngModel]="form().site"
+                    (ngModelChange)="patchForm('site', $event)"
+                    class="select mt-1.5">
+              <option value="">Select a site...</option>
               @for (s of sites(); track s) { <option [value]="s">{{ s }}</option> }
             </select>
           </label>
 
           <label class="block md:col-span-2">
             <span class="field-label">Description<span class="text-danger-3 ml-0.5">*</span></span>
-            <textarea required rows="5" name="description" [(ngModel)]="form().description"
+            <textarea required rows="5" name="description"
+                      [ngModel]="form().description"
+                      (ngModelChange)="patchForm('description', $event)"
                       class="textarea mt-1.5"
-                      placeholder="What did you observe? What did you expect to happen?"></textarea>
+                      placeholder="Describe what you noticed, what you expected, or what you'd like to see..."></textarea>
           </label>
 
           <label class="block">
             <span class="field-label">Your name</span>
-            <input name="name" [(ngModel)]="form().name" class="input mt-1.5" />
+            <input name="name"
+                   [ngModel]="form().name"
+                   (ngModelChange)="patchForm('name', $event)"
+                   class="input mt-1.5"
+                   placeholder="Optional — helps us follow up" />
           </label>
 
           <label class="block">
             <span class="field-label">Priority</span>
-            <select name="priority" [(ngModel)]="form().priority" class="select mt-1.5">
-              <option value="">— Select —</option>
+            <select name="priority"
+                    [ngModel]="form().priority"
+                    (ngModelChange)="patchForm('priority', $event)"
+                    class="select mt-1.5">
+              <option value="">Select priority...</option>
               <option value="low">Low</option>
               <option value="med">Medium</option>
               <option value="high">High</option>
@@ -96,17 +119,16 @@ const EMPTY_FORM: IFeedbackForm = {
           </label>
         </div>
 
-        <div class="flex items-center gap-3 pt-4 border-t border-gray-f0">
-          <button type="submit" class="btn-primary" [disabled]="!isValid()">
-            <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="m3 8 3 3 7-7" />
-            </svg>
-            Submit feedback
+        <div class="flex items-center gap-3 pt-2">
+          <button type="submit"
+                  class="inline-flex items-center rounded-md px-4 py-2 text-sm font-semibold
+                         bg-magna-red text-white hover:bg-[#a30e26]
+                         disabled:opacity-50 disabled:cursor-not-allowed"
+                  [disabled]="!isValid()">
+            Submit Feedback
           </button>
-          <button type="button" class="btn-tertiary" (click)="reset()">Reset</button>
           @if (status()) {
-            <span class="ml-auto text-xs text-gray-6">{{ status() }}</span>
+            <span class="text-xs text-gray-6">{{ status() }}</span>
           }
         </div>
       </form>
@@ -115,6 +137,7 @@ const EMPTY_FORM: IFeedbackForm = {
 })
 export class FeedbackPageComponent {
   private readonly appService = inject(ReadAcrossAppService);
+  private readonly chrome     = inject(DashboardChromeService);
 
   readonly form = signal<IFeedbackForm>({ ...EMPTY_FORM });
   readonly status = signal<string>('');
@@ -122,7 +145,7 @@ export class FeedbackPageComponent {
 
   readonly isValid = computed(() => {
     const f = this.form();
-    return !!f.type && !!f.page && f.description.trim().length > 0;
+    return !!f.type && f.description.trim().length > 0;
   });
 
   constructor() {
@@ -132,28 +155,34 @@ export class FeedbackPageComponent {
   submit() {
     if (!this.isValid()) return;
     const f = this.form();
-    const subject = encodeURIComponent(`Magna Read-Across feedback — ${f.type}`);
+    const subject = encodeURIComponent(`[Magna Dashboard Feedback] ${f.type}${f.page ? ` - ${f.page}` : ''}`);
     const body = encodeURIComponent([
-      `Type: ${f.type}`,
-      `Page: ${f.page}`,
-      `Initiative ID: ${f.initiativeId}`,
-      `Site: ${f.site}`,
-      `Priority: ${f.priority}`,
-      `Submitted by: ${f.name}`,
-      ``,
+      `Feedback Type: ${f.type}`,
+      ...(f.page && f.page !== 'general' ? [`Page/Section: ${f.page}`] : []),
+      ...(f.initiativeId ? [`Initiative ID: ${f.initiativeId}`] : []),
+      ...(f.site ? [`Site: ${f.site}`] : []),
+      ...(f.priority ? [`Priority: ${f.priority}`] : []),
+      '',
+      'Description:',
       f.description,
+      '',
+      '---',
+      ...(f.name ? [`Submitted by: ${f.name}`] : []),
     ].join('\n'));
-    window.location.href = `mailto:greg_shannon@mckinsey.com?subject=${subject}&body=${body}`;
-    this.status.set('Opened your default email client.');
-  }
-
-  reset() {
-    this.form.set({ ...EMPTY_FORM });
-    this.status.set('');
+    // Recipient comes from `dashboard-config.feedbackEmail` so DevOps can
+    // re-target the form without a code change. Falls back to the same
+    // default the chrome service uses if the config has not loaded yet.
+    const recipient = encodeURIComponent(this.chrome.feedbackEmail());
+    window.location.href = `mailto:${recipient}?subject=${subject}&body=${body}`;
+    this.status.set('✓ Email opened — please send it from your email client.');
   }
 
   private async loadSitesAsync(): Promise<void> {
     const options = await this.appService.getFilterOptionsAsync();
     this.sites.set(options.sites);
+  }
+
+  protected patchForm<K extends keyof IFeedbackForm>(key: K, value: IFeedbackForm[K]): void {
+    this.form.update(prev => ({ ...prev, [key]: value }));
   }
 }

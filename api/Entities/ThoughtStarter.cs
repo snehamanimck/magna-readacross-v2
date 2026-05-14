@@ -12,7 +12,7 @@ public class ThoughtStarter
     [MaxLength(256)]       public string? Lever         { get; set; }
     [MaxLength(256)]       public string? SubLever      { get; set; }
                            public string Text           { get; set; } = string.Empty;
-    public bool AdvancedAutomation { get; set; }
+    [MaxLength(128)] public string? AdvancedAutomation { get; set; }
     public bool IsActive { get; set; } = true;
     public int SortOrder { get; set; } = 100;
 }

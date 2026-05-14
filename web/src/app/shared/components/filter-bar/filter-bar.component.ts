@@ -45,6 +45,7 @@ const VISIBLE_ON: ReadonlySet<string> = new Set(['/buckets', '/heatmap']);
             <mra-pill variant="cosma" [active]="hasWs('Cosma')"      (click)="filters.toggleWorkstream('Cosma')">Cosma</mra-pill>
             <mra-pill variant="pt"    [active]="hasWs('Powertrain')" (click)="filters.toggleWorkstream('Powertrain')">Powertrain</mra-pill>
             <mra-pill variant="ext"   [active]="hasWs('Exteriors')"  (click)="filters.toggleWorkstream('Exteriors')">Exteriors</mra-pill>
+            <mra-pill variant="seat"  [active]="hasWs('Seating')"    (click)="filters.toggleWorkstream('Seating')">Seating</mra-pill>
           </div>
 
           <span class="hidden md:block w-px h-5 bg-gray-f0" aria-hidden="true"></span>

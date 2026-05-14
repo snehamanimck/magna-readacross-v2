@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
-type Variant = 'default' | 'cosma' | 'pt' | 'ext';
+type Variant = 'default' | 'cosma' | 'pt' | 'ext' | 'seat';
 
 /**
  * Filter chip / toggle. Matches the Digi DS "pill" anatomy:
@@ -27,7 +27,9 @@ type Variant = 'default' | 'cosma' | 'pt' | 'ext';
       [class.pill-pt-off]="!active && variant === 'pt'"
       [class.pill-pt-on]="active && variant === 'pt'"
       [class.pill-ext-off]="!active && variant === 'ext'"
-      [class.pill-ext-on]="active && variant === 'ext'">
+      [class.pill-ext-on]="active && variant === 'ext'"
+      [class.pill-seat-off]="!active && variant === 'seat'"
+      [class.pill-seat-on]="active && variant === 'seat'">
       @if (active) {
         <svg class="h-3 w-3" viewBox="0 0 12 12" fill="none" stroke="currentColor"
              stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

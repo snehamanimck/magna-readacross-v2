@@ -162,6 +162,8 @@ html, body { background: var(--digi-gray-f9); color: var(--digi-black); }
   .pill-pt-on      { background-color: #155EA9; color: #FFFFFF; border-color: transparent; }
   .pill-ext-off    { @apply pill-off; }
   .pill-ext-on     { background-color: #107C10; color: #FFFFFF; border-color: transparent; }
+  .pill-seat-off   { @apply pill-off; }
+  .pill-seat-on    { background-color: #B8860B; color: #FFFFFF; border-color: transparent; }
 
   /* ---- Badges -------------------------------------------------------- */
   .badge {
@@ -206,9 +208,11 @@ html, body { background: var(--digi-gray-f9); color: var(--digi-black); }
   .ws-cosma  { color: #DC3545 !important; }
   .ws-pt     { color: #155EA9 !important; }
   .ws-ext    { color: #107C10 !important; }
+  .ws-seat   { color: #B8860B !important; }
   .ws-cosma-bg { background-color: #FCE7E9 !important; color: #93000C !important; }
   .ws-pt-bg    { background-color: #DCE9F7 !important; color: #002143 !important; }
   .ws-ext-bg   { background-color: #DDEFDD !important; color: #052905 !important; }
+  .ws-seat-bg  { background-color: #FFF8E1 !important; color: #5D4A00 !important; }
 
   /* ---- Section header rail (Insights category accordions) ------------ */
   .section-rail {

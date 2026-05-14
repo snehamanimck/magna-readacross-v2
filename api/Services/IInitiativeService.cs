@@ -20,4 +20,10 @@ public interface IInitiativeService
     /// each subgroup.
     /// </summary>
     Task<IReadOnlyList<SubgroupDto>> GetSubgroupsAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Per-workstream subgroup coverage metrics for operational validation
+    /// after hierarchy updates and ingest/backfill runs.
+    /// </summary>
+    Task<IReadOnlyList<SubgroupCoverageDto>> GetSubgroupCoverageAsync(CancellationToken ct = default);
 }

@@ -2,7 +2,7 @@ export interface IInitiative {
   id: string;
   name?: string;
   description?: string;
-  workstream: 'Cosma' | 'Powertrain' | 'Exteriors';
+  workstream: 'Cosma' | 'Powertrain' | 'Exteriors' | 'Seating';
   site?: string;
   subgroup?: string;
   owner?: string;
@@ -179,6 +179,29 @@ export interface IPnlBenchmarks {
   benchmarks: Record<string, IPnlSiteBenchmark>;
   rankings: Record<string, Record<string, IPnlRankEntry[]>>;
   siteArchetypes: Record<string, string[]>;
+  /**
+   * Optional monthly P&L panel per site. Used by the P&L-Informed
+   * Recommendations page to size opportunity to the site's own cost base
+   * (mirrors legacy `_getSiteCostBase`: trailing-3-month avg of
+   * labour_benefits + wages + variable_moh + scrap, annualized).
+   */
+  monthlyPnl?: Record<string, IPnlMonthlyPanel>;
+}
+
+export interface IPnlMonthlyPanel {
+  months: string[];
+  revenue: (number | null)[];
+  laborQty: (number | null)[];
+  costs: IPnlMonthlyCosts;
+}
+
+export interface IPnlMonthlyCosts {
+  labourBenefits: (number | null)[];
+  wages: (number | null)[];
+  productionMaterials: (number | null)[];
+  fixedMoh: (number | null)[];
+  variableMoh: (number | null)[];
+  scrap: (number | null)[];
 }
 
 export interface IThoughtStarter {
@@ -188,7 +211,7 @@ export interface IThoughtStarter {
   lever?: string;
   subLever?: string;
   text: string;
-  advancedAutomation: boolean;
+  advancedAutomation?: string;
   sortOrder: number;
 }
 
@@ -283,4 +306,5 @@ export interface IDashboardConfig {
   cosmaMeta?: IWorkstreamMeta;
   powertrainMeta?: IWorkstreamMeta;
   exteriorsMeta?: IWorkstreamMeta;
+  seatingMeta?: IWorkstreamMeta;
 }

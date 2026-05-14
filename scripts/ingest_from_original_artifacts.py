@@ -8,7 +8,7 @@ Sources (defaults point at the live magna-readacross/public bundle):
 - magna-readacross/public/index.html (VIDEO_LIBRARY fallback metadata)
 
 Target tables:
-- CosmaWaveInitiatives / PowertrainWaveInitiatives / ExteriorsWaveInitiatives
+- CosmaWaveInitiatives / PowertrainWaveInitiatives / ExteriorsWaveInitiatives / SeatingWaveInitiatives
 - ArchetypeDefinitions / SiteArchetypes / PriorityInitiatives
 - ThoughtStarters / PnlRecommendations
 - KnowledgeCenterAssets / VideoLibraryAssets
@@ -147,6 +147,7 @@ def main() -> None:
     cosma_rows: list[dict[str, Any]] = []
     pt_rows: list[dict[str, Any]] = []
     ext_rows: list[dict[str, Any]] = []
+    seat_rows: list[dict[str, Any]] = []
 
     # The offline bundle does not carry a per-initiative `subgroup` value;
     # subgroups are inferred from Site/Workstream by `05_backfill_subgroups.sql`.
@@ -182,6 +183,8 @@ def main() -> None:
             pt_rows.append({**base, "Site": sql_string(site)})
         elif ws == "Exteriors":
             ext_rows.append({**base, "Division": sql_string(site)})
+        elif ws == "Seating":
+            seat_rows.append({**base, "Site": sql_string(site)})
 
     archetype_rows = []
     for key, val in archetype_defs.items():
@@ -229,7 +232,7 @@ def main() -> None:
                 "Lever": sql_string(ts.get("lever")),
                 "SubLever": sql_string(ts.get("sub_lever")),
                 "Text": sql_string(ts.get("text")),
-                "AdvancedAutomation": sql_bool(ts.get("advanced_automation")),
+                "AdvancedAutomation": sql_string(ts.get("advanced_automation")),
                 "IsActive": "1",
                 "SortOrder": sql_int(idx),
             }
@@ -286,6 +289,7 @@ def main() -> None:
     source_file_literal = sql_string(str(Path(args.dashboard_json).name))
     snapshot_sections = [
         "generated", "cosma_meta", "powertrain_meta", "exteriors_meta",
+        "seating_meta",
         "filter_options", "archetypes", "site_archetypes",
         "pnl_benchmarking", "pnl_peer_summary", "pnl_recommendations",
         "pnl_rec_dl_mfg_policy", "harmonization_notes", "priority_ids",
@@ -355,6 +359,7 @@ def main() -> None:
         "DELETE FROM readacross.PriorityInitiatives;\n",
         "DELETE FROM readacross.SiteArchetypes;\n",
         "DELETE FROM readacross.ArchetypeDefinitions;\n",
+        "DELETE FROM readacross.SeatingWaveInitiatives;\n",
         "DELETE FROM readacross.ExteriorsWaveInitiatives;\n",
         "DELETE FROM readacross.PowertrainWaveInitiatives;\n",
         "DELETE FROM readacross.CosmaWaveInitiatives;\n\n",
@@ -384,6 +389,15 @@ def main() -> None:
                 "Nrb", "IsCategorized",
             ],
             ext_rows,
+        ),
+        build_insert_sql(
+            "SeatingWaveInitiatives",
+            [
+                "InitiativeId", "Name", "Description", "Stage", "Access", "InitiativeOwner",
+                "Site", "Subgroup", "SpendCategory", "MfgProcess", "Lever", "SubLever",
+                "Nrb", "IsCategorized",
+            ],
+            seat_rows,
         ),
         build_insert_sql(
             "ArchetypeDefinitions",
@@ -429,6 +443,7 @@ def main() -> None:
             "SELECT 'CosmaWaveInitiatives' AS table_name, COUNT(*) AS row_count FROM readacross.CosmaWaveInitiatives\n"
             "UNION ALL SELECT 'PowertrainWaveInitiatives', COUNT(*) FROM readacross.PowertrainWaveInitiatives\n"
             "UNION ALL SELECT 'ExteriorsWaveInitiatives', COUNT(*) FROM readacross.ExteriorsWaveInitiatives\n"
+            "UNION ALL SELECT 'SeatingWaveInitiatives', COUNT(*) FROM readacross.SeatingWaveInitiatives\n"
             "UNION ALL SELECT 'ArchetypeDefinitions', COUNT(*) FROM readacross.ArchetypeDefinitions\n"
             "UNION ALL SELECT 'SiteArchetypes', COUNT(*) FROM readacross.SiteArchetypes\n"
             "UNION ALL SELECT 'PriorityInitiatives', COUNT(*) FROM readacross.PriorityInitiatives\n"
@@ -446,6 +461,7 @@ def main() -> None:
     print(f"Wrote SQL ingest script: {out_path}")
     print(
         f"Prepared rows => cosma:{len(cosma_rows)} pt:{len(pt_rows)} ext:{len(ext_rows)} "
+        f"seat:{len(seat_rows)} "
         f"archetypes:{len(archetype_rows)} site_archetypes:{len(site_archetype_rows)} "
         f"priority:{len(priority_rows)} thought:{len(thought_rows)} recs:{len(rec_rows)} "
         f"knowledge:{len(knowledge_rows)} video:{len(video_rows)} snapshots:{len(snapshot_rows)}"

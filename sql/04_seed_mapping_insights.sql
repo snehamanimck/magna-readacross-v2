@@ -42,15 +42,15 @@ INSERT INTO readacross.ThoughtStarters
 (SpendCategory, MfgProcess, Lever, SubLever, [Text], AdvancedAutomation, SortOrder)
 VALUES
 ('DL', 'Assembly', '(Automation) Utilization and man-machine ratio', '',
- 'What would it take to increase robot utilization by 10 points in the top downtime cell?', 1, 10),
+ 'What would it take to increase robot utilization by 10 points in the top downtime cell?', N'Cobot load/unload', 10),
 ('DL', 'Cold stamp', 'Cycle time', '',
- 'Can we isolate the top three micro-stoppage causes and run a 30-day Kaizen sprint?', 0, 20),
+ 'Can we isolate the top three micro-stoppage causes and run a 30-day Kaizen sprint?', NULL, 20),
 ('IDL', '', 'Maintenance', '',
- 'Where can predictive maintenance reduce emergency labor and contractor dependency?', 0, 30),
+ 'Where can predictive maintenance reduce emergency labor and contractor dependency?', NULL, 30),
 ('Material Conveyance', '', 'Logistics / warehouse', 'Consumption - freight',
- 'Could we consolidate inbound lanes and redesign milk-runs to reduce touches per part?', 0, 40),
+ 'Could we consolidate inbound lanes and redesign milk-runs to reduce touches per part?', NULL, 40),
 ('VOH', '', 'Utilities / energy / sustainability', '',
- 'Which two utility systems have the fastest payback from controls optimization?', 0, 50);
+ 'Which two utility systems have the fastest payback from controls optimization?', NULL, 50);
 
 /* ── P&L recommendations ────────────────────────────────────────────────── */
 INSERT INTO readacross.PnlRecommendations

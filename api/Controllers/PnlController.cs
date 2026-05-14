@@ -18,10 +18,13 @@ public class PnlController : ControllerBase
 {
     private readonly MagnaDbContext        _db;
     private readonly IPnlBenchmarkService  _benchmarks;
-    public PnlController(MagnaDbContext db, IPnlBenchmarkService benchmarks)
+    private readonly IAccessPolicyService  _accessPolicy;
+
+    public PnlController(MagnaDbContext db, IPnlBenchmarkService benchmarks, IAccessPolicyService accessPolicy)
     {
         _db         = db;
         _benchmarks = benchmarks;
+        _accessPolicy = accessPolicy;
     }
 
     /// <summary>
@@ -32,7 +35,13 @@ public class PnlController : ControllerBase
     [HttpGet("benchmarks")]
     [ProducesResponseType(typeof(PnlBenchmarksDto), StatusCodes.Status200OK)]
     public async Task<ActionResult<PnlBenchmarksDto>> Benchmarks(CancellationToken ct = default)
-        => Ok(await _benchmarks.GetAllAsync(ct));
+    {
+        if (!await CanReadPnlAsync(ct))
+        {
+            return Forbid();
+        }
+        return Ok(await _benchmarks.GetAllAsync(ct));
+    }
 
     /// <summary>Filterable, paginated raw fact rows.</summary>
     [HttpGet]
@@ -46,6 +55,11 @@ public class PnlController : ControllerBase
         [FromQuery] int      skip     = 0,
         CancellationToken ct = default)
     {
+        if (!await CanReadPnlAsync(ct))
+        {
+            return Forbid();
+        }
+
         IQueryable<PnlEntry> q = _db.PnlEntries.AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(cube))     q = q.Where(p => p.Cube     == cube);
@@ -68,6 +82,11 @@ public class PnlController : ControllerBase
         [FromQuery] string?  time     = null,
         CancellationToken ct = default)
     {
+        if (!await CanReadPnlAsync(ct))
+        {
+            return Forbid();
+        }
+
         IQueryable<PnlEntry> q = _db.PnlEntries.AsNoTracking().Where(p => p.HasData);
 
         if (!string.IsNullOrWhiteSpace(cube))     q = q.Where(p => p.Cube     == cube);
@@ -89,5 +108,11 @@ public class PnlController : ControllerBase
             .ToListAsync(ct);
 
         return Ok(rows);
+    }
+
+    private async Task<bool> CanReadPnlAsync(CancellationToken ct)
+    {
+        var access = await _accessPolicy.GetEffectiveAccessAsync(User, ct);
+        return access.AllowedItems.Contains(SecuredItems.TabPnl, StringComparer.OrdinalIgnoreCase);
     }
 }

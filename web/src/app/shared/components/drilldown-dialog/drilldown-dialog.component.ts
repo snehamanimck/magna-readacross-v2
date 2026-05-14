@@ -347,10 +347,14 @@ export class DrilldownDialogComponent implements AfterViewInit {
   }
 
   renderId(i: IInitiative): string {
-    const url = this.chrome.buildWaveCardUrl(i.id, i.workstream);
     const idText = this.escape(i.id);
-    const link = `<a href="${url}" target="_blank" rel="noopener noreferrer"
-                     class="text-magna-red underline-offset-2 hover:underline">${idText}</a>`;
+    // Seating Wave does not have a deep-link analogue in the legacy app, so
+    // render the id as plain text to mirror that behaviour exactly.
+    const link = i.workstream === 'Seating'
+      ? `<span class="text-gray-3">${idText}</span>`
+      : `<a href="${this.chrome.buildWaveCardUrl(i.id, i.workstream)}"
+            target="_blank" rel="noopener noreferrer"
+            class="text-magna-red underline-offset-2 hover:underline">${idText}</a>`;
     if (this.chrome.isPriority(i.id)) {
       const check = `
         <svg class="h-3.5 w-3.5 inline-block mr-1 -mt-0.5 align-text-bottom"

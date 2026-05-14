@@ -4,21 +4,26 @@ import { Router } from '@angular/router';
 
 import { ReadAcrossAppService } from '@domains/read-across';
 import { IBucketRow } from '@app/models';
-import { DrilldownService, FilterService, InitiativeCacheService } from '@app/core-services';
+import {
+  DrilldownService,
+  FilterService,
+  InitiativeCacheService,
+  LeverInsightsService,
+} from '@app/core-services';
 import { FmtDollarPipe, FmtNumPipe, FmtPctPipe } from '../../shared/pipes/format.pipe';
 
 const CAT_ORDER: Record<string, number> = { DL: 0, IDL: 1, 'Material Conveyance': 2, VOH: 3 };
-type Workstream = 'Cosma' | 'Powertrain' | 'Exteriors';
+type Workstream = 'Cosma' | 'Powertrain' | 'Exteriors' | 'Seating';
 
 /**
  * Initiative Overview page.
  *
  * Mirrors the production layout:
- *   • 5 KPI cards: Cosma / Powertrain / Exteriors categorized counts
- *     (each tinted by workstream), Combined count, and Combined NRB.
+ *   • 6 KPI cards: Cosma / Powertrain / Exteriors / Seating categorized
+ *     counts (each tinted by workstream), Combined count, and Combined NRB.
  *   • A pivot data grid with two-tier column headers: a top row that
  *     groups Count, % of Total, and NRB, and a sub-row that splits each
- *     group into Cosma / PT / Ext.
+ *     group into Cosma / PT / Ext / Seat.
  *   • A leading "Spend Category" group row that can be collapsed/expanded.
  *   • A star (★) icon next to lever rows so users know they can drill in
  *     to thought starters (per production copy).
@@ -34,8 +39,8 @@ type Workstream = 'Cosma' | 'Powertrain' | 'Exteriors';
       <header>
         <h1 class="text-[22px] font-bold text-gray-1 tracking-tight">Initiative Overview</h1>
         <p class="mt-1 text-[13px] text-gray-6 max-w-3xl">
-          Categorized initiative comparison across Cosma, Powertrain, and Exteriors by taxonomy
-          classification. Click any lever
+          Categorized initiative comparison across Cosma, Powertrain, Exteriors, and Seating
+          by taxonomy classification. Click any lever
           <span class="inline-flex h-3.5 w-3.5 align-text-bottom items-center justify-center
                        text-caution-2">★</span>
           to see relevant thought starters.
@@ -43,8 +48,8 @@ type Workstream = 'Cosma' | 'Powertrain' | 'Exteriors';
       </header>
 
       <!-- KPI cards. Numbers are intentionally large + tabular so the
-           5-card row reads as a "scoreboard" from across the room. -->
-      <section class="grid grid-cols-1 gap-3 md:grid-cols-5">
+           6-card row reads as a "scoreboard" from across the room. -->
+      <section class="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <article class="card p-4">
           <div class="kpi-label">Cosma Categorized</div>
           <div class="kpi-number ws-cosma">{{ wsCount('Cosma') | fmtNum }}</div>
@@ -56,6 +61,10 @@ type Workstream = 'Cosma' | 'Powertrain' | 'Exteriors';
         <article class="card p-4">
           <div class="kpi-label">Exteriors Categorized</div>
           <div class="kpi-number ws-ext">{{ wsCount('Exteriors') | fmtNum }}</div>
+        </article>
+        <article class="card p-4">
+          <div class="kpi-label">Seating Categorized</div>
+          <div class="kpi-number ws-seat">{{ wsCount('Seating') | fmtNum }}</div>
         </article>
         <article class="card p-4">
           <div class="kpi-label">Combined</div>
@@ -72,33 +81,36 @@ type Workstream = 'Cosma' | 'Powertrain' | 'Exteriors';
         <div class="overflow-auto">
           <table class="digi-grid bucket-grid">
             <thead>
-              <!-- Top header: meta columns + 3 workstream-grouped supercolumns -->
+              <!-- Top header: meta columns + 4 workstream-grouped supercolumns -->
               <tr>
                 <th rowspan="2" class="!align-bottom">Spend Category</th>
                 <th rowspan="2" class="!align-bottom">MFG Process</th>
                 <th rowspan="2" class="!align-bottom">Lever</th>
                 <th rowspan="2" class="!align-bottom">Sub Lever</th>
-                <th colspan="3" class="!text-center !text-gray-1 !border-l border-gray-d0">Count</th>
-                <th colspan="3" class="!text-center !text-gray-1 !border-l border-gray-d0">% of Total</th>
-                <th colspan="3" class="!text-center !text-gray-1 !border-l border-gray-d0">NRB</th>
+                <th colspan="4" class="!text-center !text-gray-1 !border-l border-gray-d0">Count</th>
+                <th colspan="4" class="!text-center !text-gray-1 !border-l border-gray-d0">% of Total</th>
+                <th colspan="4" class="!text-center !text-gray-1 !border-l border-gray-d0">NRB</th>
               </tr>
               <tr>
                 <th class="!text-right ws-cosma !border-l border-gray-d0">Cosma</th>
                 <th class="!text-right ws-pt">PT</th>
                 <th class="!text-right ws-ext">Ext</th>
+                <th class="!text-right ws-seat">Seat</th>
                 <th class="!text-right ws-cosma !border-l border-gray-d0">Cosma</th>
                 <th class="!text-right ws-pt">PT</th>
                 <th class="!text-right ws-ext">Ext</th>
+                <th class="!text-right ws-seat">Seat</th>
                 <th class="!text-right ws-cosma !border-l border-gray-d0">Cosma</th>
                 <th class="!text-right ws-pt">PT</th>
                 <th class="!text-right ws-ext">Ext</th>
+                <th class="!text-right ws-seat">Seat</th>
               </tr>
             </thead>
             <tbody>
               @if (loading()) {
-                <tr><td colspan="13" class="text-center text-gray-7 !py-10">Loading…</td></tr>
+                <tr><td colspan="16" class="text-center text-gray-7 !py-10">Loading…</td></tr>
               } @else if (sortedRows().length === 0) {
-                <tr><td colspan="13" class="text-center text-gray-7 !py-10">
+                <tr><td colspan="16" class="text-center text-gray-7 !py-10">
                   No initiatives match the current filters.
                 </td></tr>
               } @else {
@@ -131,9 +143,15 @@ type Workstream = 'Cosma' | 'Powertrain' | 'Exteriors';
                         (click)="onCategoryDrill($event, group, 'Exteriors', group.extCount)">
                       {{ group.extCount | fmtNum }}
                     </td>
+                    <td class="num !font-semibold ws-seat"
+                        [class.drill-cell]="group.seatCount > 0"
+                        (click)="onCategoryDrill($event, group, 'Seating', group.seatCount)">
+                      {{ group.seatCount | fmtNum }}
+                    </td>
                     <td class="num !font-semibold ws-cosma !border-l border-gray-f0">{{ group.cosmaPct | fmtPct }}</td>
                     <td class="num !font-semibold ws-pt">{{ group.ptPct | fmtPct }}</td>
                     <td class="num !font-semibold ws-ext">{{ group.extPct | fmtPct }}</td>
+                    <td class="num !font-semibold ws-seat">{{ group.seatPct | fmtPct }}</td>
                     <td class="num !font-semibold ws-cosma !border-l border-gray-f0"
                         [class.drill-cell]="group.cosmaNrb > 0"
                         (click)="onCategoryDrill($event, group, 'Cosma', group.cosmaCount)">
@@ -148,6 +166,11 @@ type Workstream = 'Cosma' | 'Powertrain' | 'Exteriors';
                         [class.drill-cell]="group.extNrb > 0"
                         (click)="onCategoryDrill($event, group, 'Exteriors', group.extCount)">
                       {{ group.extNrb | fmtDollar }}
+                    </td>
+                    <td class="num !font-semibold ws-seat"
+                        [class.drill-cell]="group.seatNrb > 0"
+                        (click)="onCategoryDrill($event, group, 'Seating', group.seatCount)">
+                      {{ group.seatNrb | fmtDollar }}
                     </td>
                   </tr>
 
@@ -182,9 +205,15 @@ type Workstream = 'Cosma' | 'Powertrain' | 'Exteriors';
                             (click)="openRowDrill(row, 'Exteriors')">
                           {{ wsLeverCount(row, 'Exteriors') }}
                         </td>
+                        <td class="num ws-seat"
+                            [class.drill-cell]="(row.byWorkstream['Seating']?.count ?? 0) > 0"
+                            (click)="openRowDrill(row, 'Seating')">
+                          {{ wsLeverCount(row, 'Seating') }}
+                        </td>
                         <td class="num ws-cosma !border-l border-gray-f0">{{ leverPct(row, 'Cosma') }}</td>
                         <td class="num ws-pt">{{ leverPct(row, 'Powertrain') }}</td>
                         <td class="num ws-ext">{{ leverPct(row, 'Exteriors') }}</td>
+                        <td class="num ws-seat">{{ leverPct(row, 'Seating') }}</td>
                         <td class="num ws-cosma !border-l border-gray-f0"
                             [class.drill-cell]="(row.byWorkstream['Cosma']?.nrb ?? 0) > 0"
                             (click)="openRowDrill(row, 'Cosma')">
@@ -199,6 +228,11 @@ type Workstream = 'Cosma' | 'Powertrain' | 'Exteriors';
                             [class.drill-cell]="(row.byWorkstream['Exteriors']?.nrb ?? 0) > 0"
                             (click)="openRowDrill(row, 'Exteriors')">
                           {{ row.byWorkstream['Exteriors']?.nrb ?? 0 | fmtDollar }}
+                        </td>
+                        <td class="num ws-seat"
+                            [class.drill-cell]="(row.byWorkstream['Seating']?.nrb ?? 0) > 0"
+                            (click)="openRowDrill(row, 'Seating')">
+                          {{ row.byWorkstream['Seating']?.nrb ?? 0 | fmtDollar }}
                         </td>
                       </tr>
                     }
@@ -247,6 +281,7 @@ export class BucketsPageComponent {
   private readonly filterSvc = inject(FilterService);
   private readonly drilldown = inject(DrilldownService);
   private readonly initiatives = inject(InitiativeCacheService);
+  private readonly leverInsights = inject(LeverInsightsService);
   private readonly router = inject(Router);
   private readonly rowsState = signal<IBucketRow[] | undefined>(undefined);
   readonly loading = computed(() => this.rowsState() === undefined);
@@ -282,9 +317,9 @@ export class BucketsPageComponent {
   readonly groupedRows = computed(() => {
     type Group = {
       category: string; rows: IBucketRow[];
-      cosmaCount: number; ptCount: number; extCount: number;
-      cosmaNrb: number;   ptNrb: number;   extNrb: number;
-      cosmaPct: number;   ptPct: number;   extPct: number;
+      cosmaCount: number; ptCount: number; extCount: number; seatCount: number;
+      cosmaNrb: number;   ptNrb: number;   extNrb: number;   seatNrb: number;
+      cosmaPct: number;   ptPct: number;   extPct: number;   seatPct: number;
     };
     const map = new Map<string, Group>();
     for (const r of this.sortedRows()) {
@@ -292,9 +327,9 @@ export class BucketsPageComponent {
       if (!g) {
         g = {
           category: r.spendCategory, rows: [],
-          cosmaCount: 0, ptCount: 0, extCount: 0,
-          cosmaNrb: 0,   ptNrb: 0,   extNrb: 0,
-          cosmaPct: 0,   ptPct: 0,   extPct: 0,
+          cosmaCount: 0, ptCount: 0, extCount: 0, seatCount: 0,
+          cosmaNrb: 0,   ptNrb: 0,   extNrb: 0,   seatNrb: 0,
+          cosmaPct: 0,   ptPct: 0,   extPct: 0,   seatPct: 0,
         };
         map.set(r.spendCategory, g);
       }
@@ -302,18 +337,22 @@ export class BucketsPageComponent {
       g.cosmaCount += r.byWorkstream['Cosma']?.count      ?? 0;
       g.ptCount    += r.byWorkstream['Powertrain']?.count ?? 0;
       g.extCount   += r.byWorkstream['Exteriors']?.count  ?? 0;
+      g.seatCount  += r.byWorkstream['Seating']?.count    ?? 0;
       g.cosmaNrb   += r.byWorkstream['Cosma']?.nrb        ?? 0;
       g.ptNrb      += r.byWorkstream['Powertrain']?.nrb   ?? 0;
       g.extNrb     += r.byWorkstream['Exteriors']?.nrb    ?? 0;
+      g.seatNrb    += r.byWorkstream['Seating']?.nrb      ?? 0;
     }
     // Compute "% of total" relative to the workstream totals.
     const cosmaTotal = this.wsCount('Cosma');
     const ptTotal    = this.wsCount('Powertrain');
     const extTotal   = this.wsCount('Exteriors');
+    const seatTotal  = this.wsCount('Seating');
     for (const g of map.values()) {
       g.cosmaPct = cosmaTotal ? (g.cosmaCount / cosmaTotal) * 100 : 0;
       g.ptPct    = ptTotal    ? (g.ptCount    / ptTotal)    * 100 : 0;
       g.extPct   = extTotal   ? (g.extCount   / extTotal)   * 100 : 0;
+      g.seatPct  = seatTotal  ? (g.seatCount  / seatTotal)  * 100 : 0;
     }
     return Array.from(map.values()).sort((a, b) =>
       (CAT_ORDER[a.category] ?? 9) - (CAT_ORDER[b.category] ?? 9));
@@ -407,20 +446,19 @@ export class BucketsPageComponent {
   }
 
   /**
-   * Lever ★ click: navigates to the Insights → Thought Starters tab with
-   * filter state encoded in the query string. The Insights page reads the
-   * params on load and pre-applies them.
+   * Lever ★ click: opens the multi-tab "Lever Insights" dialog (Thought
+   * Starters / Knowledge Center / Video Library) pre-filtered to this
+   * lever's taxonomy slice. Mirrors the legacy
+   * `openThoughtStarterPanel` modal — keeps the user on the buckets
+   * page so they don't lose scroll position.
    */
   openLeverThoughtStarters(row: IBucketRow): void {
     if (!row.lever) return;
-    void this.router.navigate(['/insights'], {
-      queryParams: {
-        tab: 'thought-starters',
-        lever: row.lever,
-        subLever: row.subLever || undefined,
-        spendCategory: row.spendCategory || undefined,
-      },
-      queryParamsHandling: 'merge',
+    this.leverInsights.open({
+      spendCategory: row.spendCategory || undefined,
+      mfgProcess:    row.mfgProcess    || undefined,
+      lever:         row.lever,
+      subLever:      row.subLever      || undefined,
     });
   }
 

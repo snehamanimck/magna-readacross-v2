@@ -36,4 +36,12 @@ public class InitiativesController : ControllerBase
     [HttpGet("subgroups")]
     public async Task<ActionResult<IReadOnlyList<SubgroupDto>>> GetSubgroups(CancellationToken ct)
         => Ok(await _service.GetSubgroupsAsync(ct));
+
+    /// <summary>
+    /// Coverage diagnostics for subgroup population by workstream, including
+    /// unresolved entity names that still need mapping/backfill.
+    /// </summary>
+    [HttpGet("subgroups/coverage")]
+    public async Task<ActionResult<IReadOnlyList<SubgroupCoverageDto>>> GetSubgroupCoverage(CancellationToken ct)
+        => Ok(await _service.GetSubgroupCoverageAsync(ct));
 }

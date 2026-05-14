@@ -41,6 +41,7 @@ public class DashboardConfigService : IDashboardConfigService
             .Where(s => s.SectionKey == "cosma_meta"
                      || s.SectionKey == "powertrain_meta"
                      || s.SectionKey == "exteriors_meta"
+                     || s.SectionKey == "seating_meta"
                      || s.SectionKey == "generated")
             .GroupBy(s => s.SectionKey)
             .Select(g => g.OrderByDescending(x => x.GeneratedAtUtc).First())
@@ -60,6 +61,7 @@ public class DashboardConfigService : IDashboardConfigService
             CosmaMeta      = MetaFromSnapshot(bySection, "cosma_meta")      ?? ToDto(_options.CosmaMeta),
             PowertrainMeta = MetaFromSnapshot(bySection, "powertrain_meta") ?? ToDto(_options.PowertrainMeta),
             ExteriorsMeta  = MetaFromSnapshot(bySection, "exteriors_meta")  ?? ToDto(_options.ExteriorsMeta),
+            SeatingMeta    = MetaFromSnapshot(bySection, "seating_meta")    ?? ToDto(_options.SeatingMeta),
         };
     }
 

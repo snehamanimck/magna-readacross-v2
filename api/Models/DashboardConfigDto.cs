@@ -26,6 +26,7 @@ public record DashboardConfigDto
     public WorkstreamMetaDto? CosmaMeta { get; init; }
     public WorkstreamMetaDto? PowertrainMeta { get; init; }
     public WorkstreamMetaDto? ExteriorsMeta { get; init; }
+    public WorkstreamMetaDto? SeatingMeta { get; init; }
 }
 
 /// <summary>

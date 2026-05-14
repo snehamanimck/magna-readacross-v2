@@ -3,8 +3,10 @@ using Azure.Identity;
 using MagnaReadAcross.Api.Data;
 using MagnaReadAcross.Api.Models;
 using MagnaReadAcross.Api.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Identity.Web;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,6 +31,20 @@ builder.Services.AddControllers().AddJsonOptions(o =>
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.Configure<AccessControlOptions>(builder.Configuration.GetSection(AccessControlOptions.SectionName));
+builder.Services.Configure<BlobDatasetOptions>(builder.Configuration.GetSection(BlobDatasetOptions.SectionName));
+
+var accessOptions = builder.Configuration.GetSection(AccessControlOptions.SectionName).Get<AccessControlOptions>()
+                    ?? new AccessControlOptions();
+
+if (!builder.Environment.IsDevelopment() || !accessOptions.BypassAuthInDevelopment)
+{
+    builder.Services
+        .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
+    builder.Services.AddAuthorization();
+}
 
 // ── SQL Server with Azure AD / Managed Identity ───────────────────────────
 //
@@ -78,6 +94,8 @@ builder.Services.AddScoped<IInitiativeService, InitiativeService>();
 builder.Services.AddScoped<IAggregatesService, AggregatesService>();
 builder.Services.AddScoped<IInsightsService, InsightsService>();
 builder.Services.AddScoped<IDashboardConfigService, DashboardConfigService>();
+builder.Services.AddScoped<IAccessPolicyService, AccessPolicyService>();
+builder.Services.AddScoped<IBlobDatasetService, BlobDatasetService>();
 // Singleton: pnl-benchmarks blob is read-only, ~160 KB, parsed once at boot.
 builder.Services.AddSingleton<IPnlBenchmarkService, PnlBenchmarkService>();
 
@@ -91,6 +109,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors(CorsPolicy);
 app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment() || !accessOptions.BypassAuthInDevelopment)
+{
+    app.UseAuthentication();
+    app.UseAuthorization();
+}
 app.MapControllers();
 
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok", utc = DateTime.UtcNow }));
