@@ -192,7 +192,7 @@ public class DashboardConfigService : IDashboardConfigService
     {
         var fallback = ToMappingConfigDto(_options.MappingConfig);
 
-        var slugs = await _db.MagnaDivisionAliases
+        var divisionAliases = await _db.MagnaDivisionAliases
             .AsNoTracking()
             .Where(x => x.IsActive)
             .ToListAsync(ct);
@@ -215,7 +215,7 @@ public class DashboardConfigService : IDashboardConfigService
             .ThenByDescending(x => x.RecommendationScoringId)
             .FirstOrDefaultAsync(ct);
 
-        var hasSqlRuntime = slugs.Count > 0
+        var hasSqlRuntime = divisionAliases.Count > 0
                             || subgroupMap.Count > 0
                             || archetypeMfg.Count > 0
                             || spendCategoryMetric.Count > 0
@@ -225,12 +225,12 @@ public class DashboardConfigService : IDashboardConfigService
 
         return new MappingConfigDto
         {
-            MagnaDivisionAliases = slugs.Count > 0
-                ? slugs
-                    .GroupBy(x => x.WorkstreamName, StringComparer.OrdinalIgnoreCase)
+            MagnaDivisionAliases = divisionAliases.Count > 0
+                ? divisionAliases
+                    .GroupBy(x => x.MagnaDivision, StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(
                         g => g.Key,
-                            g => g.OrderByDescending(x => x.UpdatedAtUtc).ThenByDescending(x => x.MagnaDivisionAliasId).First().Slug,
+                        g => g.OrderByDescending(x => x.UpdatedAtUtc).ThenByDescending(x => x.MagnaDivisionAliasId).First().DivisionAlias,
                         StringComparer.OrdinalIgnoreCase)
                 : fallback.MagnaDivisionAliases,
             RecommendationConfig = new PnlRecommendationRuntimeDto

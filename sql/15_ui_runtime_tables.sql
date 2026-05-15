@@ -6,12 +6,26 @@ BEGIN
     CREATE TABLE readacross.MagnaDivisionAliases
     (
         MagnaDivisionAliasId BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_MagnaDivisionAliases PRIMARY KEY,
-        WorkstreamName       NVARCHAR(64) NOT NULL,
-        Slug                 NVARCHAR(64) NOT NULL,
+        MagnaDivision        NVARCHAR(64) NOT NULL,
+        DivisionAlias        NVARCHAR(64) NOT NULL,
         IsActive             BIT          NOT NULL CONSTRAINT DF_MagnaDivisionAliases_IsActive DEFAULT (1),
         UpdatedAtUtc         DATETIME2(0) NOT NULL CONSTRAINT DF_MagnaDivisionAliases_UpdatedAt DEFAULT (SYSUTCDATETIME()),
-        CONSTRAINT UQ_MagnaDivisionAliases_WorkstreamName UNIQUE (WorkstreamName)
+        CONSTRAINT UQ_MagnaDivisionAliases_MagnaDivision UNIQUE (MagnaDivision)
     );
+END;
+GO
+
+IF OBJECT_ID('readacross.MagnaDivisionAliases', 'U') IS NOT NULL
+   AND COL_LENGTH('readacross.MagnaDivisionAliases', 'WorkstreamName') IS NOT NULL
+BEGIN
+    EXEC sp_rename 'readacross.MagnaDivisionAliases.WorkstreamName', 'MagnaDivision', 'COLUMN';
+END;
+GO
+
+IF OBJECT_ID('readacross.MagnaDivisionAliases', 'U') IS NOT NULL
+   AND COL_LENGTH('readacross.MagnaDivisionAliases', 'Slug') IS NOT NULL
+BEGIN
+    EXEC sp_rename 'readacross.MagnaDivisionAliases.Slug', 'DivisionAlias', 'COLUMN';
 END;
 GO
 
@@ -89,12 +103,12 @@ GO
 -- Backfill renamed tables from legacy UiRuntime* names when present.
 IF OBJECT_ID('readacross.UiRuntimeWorkstreamSlugs', 'U') IS NOT NULL
 BEGIN
-    INSERT INTO readacross.MagnaDivisionAliases (WorkstreamName, Slug, IsActive, UpdatedAtUtc)
+    INSERT INTO readacross.MagnaDivisionAliases (MagnaDivision, DivisionAlias, IsActive, UpdatedAtUtc)
     SELECT s.WorkstreamName, s.Slug, s.IsActive, s.UpdatedAtUtc
     FROM readacross.UiRuntimeWorkstreamSlugs s
     WHERE NOT EXISTS (
         SELECT 1 FROM readacross.MagnaDivisionAliases t
-        WHERE t.WorkstreamName = s.WorkstreamName
+        WHERE t.MagnaDivision = s.WorkstreamName
     );
 END;
 GO

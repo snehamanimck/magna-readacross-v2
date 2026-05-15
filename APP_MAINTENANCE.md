@@ -114,12 +114,33 @@ Your upstream process should insert/update facts here.
 ## Rows that the calculation pipeline actually uses
 
 - `HasData = 1`
-- `Scenario LIKE 'Actual%'`
+- `Scenario LIKE 'Actual%'`, for example `Actual` or `Actual FY2026`
 - `View = 'Periodic'`
 
-If new rows do not satisfy those conditions, recompute will ignore them.
+The row also needs these values to be usable in benchmark calculations:
+
+- `Time` must be in the HFM-style month format parsed by the API, for example
+  `2026M1`, `2026M2`, or `2026M12`.
+- `Entity` must identify the site. This is the key used to group monthly P&L
+  facts by site.
+- `Account` must match an active row in `readacross.PnlAccountMap`. Rows whose
+  account labels cannot be mapped to an internal metric key are skipped.
+- `Amount` must contain the numeric monthly value for that account.
+- For benchmark output, the entity should also have metadata in
+  `readacross.PnlSiteDim`, especially `Workstream`, `Archetype`, `Subgroup`,
+  and display name. Cosma benchmark rows are generated for entities whose
+  resolved workstream is `Cosma`.
+
+If new rows do not satisfy those conditions, recompute will ignore them or they
+will not contribute to the P&L benchmark metrics.
 
 ## Required post-step after P&L load
+
+When a new month of P&L data is added to `readacross.PnlEntries`, run the
+recompute step below. The app does not need a code change for a new month:
+`PnlCalculationEngine` reads the latest eligible months from `PnlEntries`,
+recalculates trailing three-month averages, refreshes benchmark anchors,
+updates opportunities/rankings, and regenerates recommendations.
 
 ```bash
 make recompute-pnl
@@ -145,6 +166,93 @@ The endpoint chain is:
 1. `PnlCalculationEngine.RecomputeAllAsync`
 2. `PnlRecommendationEngine.RecomputeAllAsync`
 3. `PnlEbitOverlayService.ApplyAsync`
+
+## How benchmarks are calculated
+
+`PnlCalculationEngine` starts from eligible `PnlEntries` rows, maps source
+accounts through `PnlAccountMap`, and joins site metadata from `PnlSiteDim`.
+It builds monthly panels per entity, derives `VOH` from fixed and variable MOH,
+derives `wages` from IDL and SGA labour accounts, and calculates trailing
+three-month averages for each account key.
+
+The benchmark metrics are profitability, operating expense ratio, production
+labour and benefits ratio, wages ratio, production materials ratio, VOH ratio,
+and scrap ratio. Benchmark anchors are selected across all Cosma sites, within
+each archetype, and within each subgroup. The best performer is the site with
+the highest profitability when EBITDA is available; otherwise it is the site
+with the lowest operating-expense ratio.
+
+For each Cosma site and metric, the engine writes the site value, anchor values,
+anchor entities, and opportunity amounts to `PnlSiteBenchmarks`. Opportunity is
+the positive site-to-anchor gap multiplied by trailing three-month production
+revenue. Rankings are then written to `PnlRankings`, with higher profitability
+ranking first and lower cost ratios ranking first.
+
+## Benchmark formulas
+
+```text
+VOH = VOH_variable + VOH_fixed
+wages = IDL + SGA_fixed + SGA_labour
+
+trailing_3m(account_key) =
+  average of that account key across the latest 3 months available for the site
+
+profitability =
+  trailing_3m(EBITDA) / trailing_3m(production_sales)
+
+opex_ratio =
+  (
+    trailing_3m(DL)
+    + trailing_3m(wages)
+    + trailing_3m(materials)
+    + trailing_3m(VOH)
+    + trailing_3m(scrap_expense)
+  ) / trailing_3m(production_sales)
+
+labour_benefits_ratio =
+  trailing_3m(DL) / trailing_3m(production_sales)
+
+wages_ratio =
+  trailing_3m(wages) / trailing_3m(production_sales)
+
+prod_materials_ratio =
+  trailing_3m(materials) / trailing_3m(production_sales)
+
+voh_ratio =
+  trailing_3m(VOH) / trailing_3m(production_sales)
+
+scrap_ratio =
+  trailing_3m(scrap_expense) / trailing_3m(production_sales)
+```
+
+## Opportunity example
+
+```text
+Site A latest 3 months:
+  production_sales = 10,000,000 average per month
+  DL = 1,000,000
+  wages = 500,000
+  materials = 4,000,000
+  VOH = 1,000,000
+  scrap_expense = 100,000
+  EBITDA = 800,000
+
+Site A opex_ratio =
+  (1,000,000 + 500,000 + 4,000,000 + 1,000,000 + 100,000)
+  / 10,000,000
+  = 0.66, or 66%
+
+If the subgroup anchor opex_ratio is 60%:
+  gap = max(0, 0.66 - 0.60) = 0.06
+  opportunity_vs_subgroup = 0.06 * 10,000,000 = 600,000
+
+Site A profitability =
+  800,000 / 10,000,000 = 0.08, or 8%
+
+If the Cosma anchor profitability is 12%:
+  gap = max(0, 0.12 - 0.08) = 0.04
+  opportunity_vs_cosma = 0.04 * 10,000,000 = 400,000
+```
 
 ## Validate recompute output
 
@@ -256,7 +364,7 @@ Legacy `readacross.UiRuntime*` tables are retired and removed by:
 ```bash
 docker exec -i magna-readacross-sql /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'Magna#Seed2026!' -d MagnaReadAcross -C -Q \
-  "SELECT TOP (10) * FROM readacross.MagnaDivisionAliases ORDER BY WorkstreamName;
+  "SELECT TOP (10) * FROM readacross.MagnaDivisionAliases ORDER BY MagnaDivision;
    SELECT TOP (10) * FROM readacross.CosmaSubgroupMap ORDER BY SiteName;
    SELECT TOP (10) * FROM readacross.ArchetypeMfgAllowed ORDER BY ArchetypeKey, MfgProcess;
    SELECT TOP (10) * FROM readacross.SpendCategoryMetricMap ORDER BY SpendCategory, MetricKey;

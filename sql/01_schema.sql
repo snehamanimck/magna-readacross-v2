@@ -400,11 +400,11 @@ GO
 CREATE TABLE readacross.MagnaDivisionAliases
 (
     MagnaDivisionAliasId BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_MagnaDivisionAliases PRIMARY KEY,
-    WorkstreamName       NVARCHAR(64) NOT NULL,
-    Slug                 NVARCHAR(64) NOT NULL,
+    MagnaDivision        NVARCHAR(64) NOT NULL,
+    DivisionAlias        NVARCHAR(64) NOT NULL,
     IsActive             BIT          NOT NULL CONSTRAINT DF_MagnaDivisionAliases_IsActive DEFAULT (1),
     UpdatedAtUtc         DATETIME2(0) NOT NULL CONSTRAINT DF_MagnaDivisionAliases_UpdatedAt DEFAULT (SYSUTCDATETIME()),
-    CONSTRAINT UQ_MagnaDivisionAliases_WorkstreamName UNIQUE (WorkstreamName)
+    CONSTRAINT UQ_MagnaDivisionAliases_MagnaDivision UNIQUE (MagnaDivision)
 );
 GO
 
