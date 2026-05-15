@@ -351,12 +351,45 @@ CREATE INDEX IX_VideoLibraryAssets_Category ON readacross.VideoLibraryAssets (Sp
 GO
 
 /* ──────────────────────────────────────────────────────────────────────────
-   DashboardSnapshots — landing table for the structured blocks of the
-   offline dashboard_data.json that don't have a natural relational shape
-   (cosma/powertrain/exteriors meta, filter_options, harmonization_notes,
-    pnl_benchmarking, pnl_peer_summary, pnl_rec_dl_mfg_policy, archetypes,
-    site_archetypes, priority_ids, generated). One row per SectionKey for
-    the latest snapshot; older snapshots are kept by GeneratedAtUtc.
+   DashboardMetaSnapshots — landing table for dashboard metadata blocks
+   consumed by DashboardConfigService (generated + per-workstream meta +
+   optional taxonomy helper sections).
+   ────────────────────────────────────────────────────────────────────────── */
+IF OBJECT_ID('readacross.DashboardMetaSnapshots', 'U') IS NOT NULL
+    DROP TABLE readacross.DashboardMetaSnapshots;
+GO
+
+CREATE TABLE readacross.DashboardMetaSnapshots
+(
+    SnapshotId       BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_DashboardMetaSnapshots PRIMARY KEY,
+    SectionKey       NVARCHAR(64)    NOT NULL
+        CONSTRAINT CK_DashboardMetaSnapshots_SectionKey
+        CHECK (SectionKey IN (
+            N'generated',
+            N'cosma_meta',
+            N'powertrain_meta',
+            N'exteriors_meta',
+            N'seating_meta',
+            N'filter_options',
+            N'archetypes',
+            N'site_archetypes',
+            N'harmonization_notes',
+            N'priority_ids'
+        )),
+    GeneratedAtUtc   DATETIME2(0)    NOT NULL CONSTRAINT DF_DashboardMetaSnapshots_Gen DEFAULT (SYSUTCDATETIME()),
+    SourceFile       NVARCHAR(512)   NULL,
+    PayloadJson      NVARCHAR(MAX)   NOT NULL,
+    LoadedAtUtc      DATETIME2(0)    NOT NULL CONSTRAINT DF_DashboardMetaSnapshots_Loaded DEFAULT (SYSUTCDATETIME())
+);
+GO
+
+CREATE INDEX IX_DashboardMetaSnapshots_Section_Generated
+    ON readacross.DashboardMetaSnapshots (SectionKey, GeneratedAtUtc DESC);
+GO
+
+/* ──────────────────────────────────────────────────────────────────────────
+   DashboardSnapshots (legacy) — retained for backward compatibility only.
+   Runtime config/metadata now uses DashboardMetaSnapshots.
    ────────────────────────────────────────────────────────────────────────── */
 IF OBJECT_ID('readacross.DashboardSnapshots', 'U') IS NOT NULL
     DROP TABLE readacross.DashboardSnapshots;

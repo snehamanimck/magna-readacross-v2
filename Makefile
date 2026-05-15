@@ -1,6 +1,6 @@
 .PHONY: up build down logs ingest ingest-and-restart \
         sql-shell seed-seating-wave backfill-subgroups seed-from-legacy \
-        coverage
+        coverage recompute-pnl
 
 PROJECT_DIR := /Users/Sneha_Mani/Development/Magna/magna-readacross-v2
 COMPOSE := docker compose -f "$(PROJECT_DIR)/docker-compose.yml" --project-directory "$(PROJECT_DIR)"
@@ -79,3 +79,6 @@ seed-from-legacy: seed-seating-wave
 # the four workstreams report 0 unmapped entities.
 coverage:
 	@curl -s "$(API_BASE)/api/Initiatives/subgroups/coverage" | python3 -m json.tool
+
+recompute-pnl:
+	@curl -s -X POST "$(API_BASE)/api/Pnl/recompute" | python3 -m json.tool

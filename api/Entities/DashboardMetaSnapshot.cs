@@ -4,11 +4,13 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace MagnaReadAcross.Api.Entities;
 
 /// <summary>
-/// Legacy snapshot table retained for backward compatibility.
-/// Runtime metadata now uses <c>DashboardMetaSnapshots</c>.
+/// Meta-only snapshot storage for dashboard chrome/config blocks:
+/// generated, cosma_meta, powertrain_meta, exteriors_meta, seating_meta,
+/// plus optional taxonomy helper sections (filter_options, archetypes,
+/// site_archetypes, priority_ids, harmonization_notes).
 /// </summary>
-[Table("DashboardSnapshots", Schema = "readacross")]
-public class DashboardSnapshot
+[Table("DashboardMetaSnapshots", Schema = "readacross")]
+public class DashboardMetaSnapshot
 {
     [Key] public long SnapshotId { get; set; }
 

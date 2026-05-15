@@ -10,14 +10,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Static reference data shipped with the API image (read-only). The
-         pnl-benchmarks blob is a 1:1 export of the legacy offline-dashboard
-         pnl_benchmarking section and lets the SPA render full Cosma / PT /
-         Exteriors rankings while the live data warehouse is wired up. -->
-    <None Include="Resources\pnl-benchmarks.json" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="Azure.Identity" Version="1.13.1" />
     <PackageReference Include="Azure.Storage.Blobs" Version="12.28.0" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.10" />

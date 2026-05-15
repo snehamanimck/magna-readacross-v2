@@ -28,6 +28,21 @@ public record PnlRecommendationDto
     public string RecommendationText { get; init; } = string.Empty;
     public decimal? OpportunityAmount { get; init; }
     public int PriorityRank { get; init; }
+    public string? SpendCategory { get; init; }
+    public string? PrimaryDriver { get; init; }
+    public decimal? SiteValue { get; init; }
+    public decimal? BenchmarkMedian { get; init; }
+    public byte? Quartile { get; init; }
+    public decimal? WhitespaceEstimate { get; init; }
+    public int? DeploymentCount { get; init; }
+    public IReadOnlyList<string> DeployingDivisions { get; init; } = Array.Empty<string>();
+    public string? AnchorMatch { get; init; }
+    public int? PriorityCount { get; init; }
+    public decimal? PriorityFraction { get; init; }
+    public string? EvidenceStrength { get; init; }
+    public decimal? Confidence { get; init; }
+    public string? Rationale { get; init; }
+    public DateTime ComputedAtUtc { get; init; }
 }
 
 public record KnowledgeCenterAssetDto

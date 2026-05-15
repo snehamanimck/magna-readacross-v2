@@ -16,6 +16,7 @@ import {
   IInitiative,
   IKnowledgeCenterAsset,
   IPnlBenchmarks,
+  IPnlRecommendation,
   IThoughtStarter,
   IVideoLibraryAsset,
 } from '@app/models';
@@ -532,6 +533,7 @@ export class InsightsPageComponent implements AfterViewInit {
   // Server-loaded data.
   /** Curated P&L benchmarks blob (53 Cosma + PT + Exteriors sites). */
   readonly pnlBenchmarks = signal<IPnlBenchmarks | undefined>(undefined);
+  readonly pnlRecommendations = signal<IPnlRecommendation[] | undefined>(undefined);
   readonly initiatives   = signal<readonly IInitiative[] | undefined>(undefined);
   readonly thoughtStarters = signal<IThoughtStarter[] | undefined>(undefined);
   readonly knowledgeAssets = signal<IKnowledgeCenterAsset[] | undefined>(undefined);
@@ -559,7 +561,55 @@ export class InsightsPageComponent implements AfterViewInit {
     const bench = this.pnlBenchmarks();
     const inits = this.initiatives();
     if (!bench || !inits) return [];
-    return this.pnlRecs.computeAll(bench, inits);
+    const apiRecs = this.pnlRecommendations() ?? [];
+    if (apiRecs.length === 0) {
+      return this.pnlRecs.computeAll(bench, inits);
+    }
+
+    const grouped = new Map<string, IPnlRecommendation[]>();
+    for (const rec of apiRecs) {
+      if (rec.workstream !== 'Cosma') continue;
+      const list = grouped.get(rec.site) ?? [];
+      list.push(rec);
+      grouped.set(rec.site, list);
+    }
+
+    return Array.from(grouped.entries()).map(([site, recs]) => {
+      const sd = bench.benchmarks?.[site];
+      const archetype = sd?.archetype ?? bench.siteArchetypes?.[site]?.[0];
+      const subgroup = sd?.subgroup;
+      const costBase = this.pnlRecs.getSiteCostBase(site, bench);
+      const mapped: IPnlRecCard[] = recs
+        .sort((a, b) => a.priorityRank - b.priorityRank)
+        .slice(0, 3)
+        .map((r, idx) => ({
+          rank: r.priorityRank || idx + 1,
+          row: {
+            key: `${r.spendCategory ?? 'Other'}||${r.recommendationText ?? ''}`,
+            sc: r.spendCategory ?? 'Other',
+            mp: '',
+            lv: r.recommendationText ?? '',
+            sl: '',
+            sites: {},
+          },
+          isWhitespace: true,
+          nrbShortfall: 0,
+          siteNrb: 0,
+          siteCount: 0,
+          peerMedianNrb: r.benchmarkMedian ?? 0,
+          totalPeerCount: r.deploymentCount ?? 0,
+          archPeerCount: r.deploymentCount ?? 0,
+          opportunity: r.whitespaceEstimate ?? r.opportunityAmount ?? 0,
+          bestPeers: r.deployingDivisions ?? [],
+          pnlGap: 0,
+          archMatchPct: 0,
+          regionMatchPct: 0,
+          score: r.confidence ?? 0,
+          drillInits: [],
+        }));
+
+      return { site, archetype, subgroup, costBase, recs: mapped };
+    });
   });
 
   /** Distinct subgroups across all Cosma sites — drives the pill row. */
@@ -698,6 +748,7 @@ export class InsightsPageComponent implements AfterViewInit {
 
   constructor() {
     void this.loadPnlBenchmarksAsync();
+    void this.loadPnlRecommendationsAsync();
     void this.loadInitiativesAsync();
     void this.loadThoughtStartersAsync();
     void this.loadKnowledgeAssetsAsync();
@@ -740,6 +791,10 @@ export class InsightsPageComponent implements AfterViewInit {
     // Re-uses the shared cache that the heatmap / buckets pages already
     // populate, so navigating here doesn't trigger a duplicate network call.
     this.initiatives.set(await this.initiativeCache.getAllAsync());
+  }
+
+  private async loadPnlRecommendationsAsync(): Promise<void> {
+    this.pnlRecommendations.set(await this.appService.getPnlRecommendationsAsync());
   }
 
   private async loadThoughtStartersAsync(): Promise<void> {

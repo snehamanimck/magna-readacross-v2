@@ -3,6 +3,7 @@ using Azure.Identity;
 using MagnaReadAcross.Api.Data;
 using MagnaReadAcross.Api.Models;
 using MagnaReadAcross.Api.Services;
+using MagnaReadAcross.Api.Services.Pnl;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -96,8 +97,10 @@ builder.Services.AddScoped<IInsightsService, InsightsService>();
 builder.Services.AddScoped<IDashboardConfigService, DashboardConfigService>();
 builder.Services.AddScoped<IAccessPolicyService, AccessPolicyService>();
 builder.Services.AddScoped<IBlobDatasetService, BlobDatasetService>();
-// Singleton: pnl-benchmarks blob is read-only, ~160 KB, parsed once at boot.
-builder.Services.AddSingleton<IPnlBenchmarkService, PnlBenchmarkService>();
+builder.Services.AddScoped<IPnlCalculationEngine, PnlCalculationEngine>();
+builder.Services.AddScoped<IPnlRecommendationEngine, PnlRecommendationEngine>();
+builder.Services.AddScoped<IPnlEbitOverlayService, PnlEbitOverlayService>();
+builder.Services.AddScoped<IPnlBenchmarkService, PnlBenchmarkService>();
 
 var app = builder.Build();
 

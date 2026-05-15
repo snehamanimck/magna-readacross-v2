@@ -1,5 +1,7 @@
 using MagnaReadAcross.Api.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using System.Text.Json;
 
 namespace MagnaReadAcross.Api.Data;
 
@@ -18,9 +20,15 @@ public class MagnaDbContext : DbContext
     public DbSet<PriorityInitiative>        PriorityInitiatives       { get => Set<PriorityInitiative>(); }
     public DbSet<ThoughtStarter>            ThoughtStarters           { get => Set<ThoughtStarter>(); }
     public DbSet<PnlRecommendation>         PnlRecommendations        { get => Set<PnlRecommendation>(); }
+    public DbSet<PnlAccountMap>             PnlAccountMaps            { get => Set<PnlAccountMap>(); }
+    public DbSet<PnlSiteDim>                PnlSiteDims               { get => Set<PnlSiteDim>(); }
+    public DbSet<PnlSiteBenchmark>          PnlSiteBenchmarks         { get => Set<PnlSiteBenchmark>(); }
+    public DbSet<PnlAnchor>                 PnlAnchors                { get => Set<PnlAnchor>(); }
+    public DbSet<PnlRanking>                PnlRankings               { get => Set<PnlRanking>(); }
     public DbSet<KnowledgeCenterAsset>      KnowledgeCenterAssets     { get => Set<KnowledgeCenterAsset>(); }
     public DbSet<VideoLibraryAsset>         VideoLibraryAssets        { get => Set<VideoLibraryAsset>(); }
     public DbSet<DashboardSnapshot>         DashboardSnapshots        { get => Set<DashboardSnapshot>(); }
+    public DbSet<DashboardMetaSnapshot>     DashboardMetaSnapshots    { get => Set<DashboardMetaSnapshot>(); }
     public DbSet<AccessPolicyAssignment>    AccessPolicyAssignments   { get => Set<AccessPolicyAssignment>(); }
 
     protected override void OnModelCreating(ModelBuilder b)
@@ -35,6 +43,20 @@ public class MagnaDbContext : DbContext
             entity.Property(x => x.DisplayName).HasMaxLength(256);
             entity.Property(x => x.UpdatedBy).HasMaxLength(256);
             entity.Property(x => x.AllowedTabsJson).HasColumnType("nvarchar(max)");
+        });
+
+        var listConverter = new ValueConverter<IReadOnlyList<string>, string>(
+            v => JsonSerializer.Serialize(v ?? Array.Empty<string>(), (JsonSerializerOptions?)null),
+            v => string.IsNullOrWhiteSpace(v)
+                ? Array.Empty<string>()
+                : JsonSerializer.Deserialize<IReadOnlyList<string>>(v, (JsonSerializerOptions?)null) ?? Array.Empty<string>());
+
+        b.Entity<PnlRecommendation>(entity =>
+        {
+            entity.Property(x => x.DeployingDivisions)
+                  .HasColumnName("DeployingDivisions")
+                  .HasColumnType("nvarchar(max)")
+                  .HasConversion(listConverter);
         });
     }
 }

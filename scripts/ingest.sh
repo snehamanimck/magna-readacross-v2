@@ -2,6 +2,12 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+USE_XLSX=0
+for arg in "$@"; do
+    if [[ "$arg" == "--xlsx" ]]; then
+        USE_XLSX=1
+    fi
+done
 
 SQL_CONTAINER="${SQL_CONTAINER:-magna-readacross-sql}"
 SQL_USER="${SQL_USER:-sa}"
@@ -21,9 +27,17 @@ apply_sql() {
 
 python3 "$ROOT_DIR/scripts/sync_media_assets.py"
 
+if [[ "$USE_XLSX" -eq 1 ]]; then
+    echo "→ XLSX mode: loading PnlEntries from Rolling Analyst workbooks (stub-safe)..."
+    python3 "$ROOT_DIR/scripts/load_pnl_entries_from_xlsx.py"
+else
+    echo "→ Bootstrap mode: loading PnlEntries from monthly_pnl JSON..."
+    python3 "$ROOT_DIR/scripts/load_pnl_entries_from_monthly_pnl.py" --apply-to-container
+fi
+
 # Loads CosmaWaveInitiatives / PowertrainWaveInitiatives /
 # ExteriorsWaveInitiatives / SeatingWaveInitiatives plus archetypes /
-# thought-starters / pnl-recommendations / knowledge-center / video-library
+# thought-starters / knowledge-center / video-library
 # / dashboard snapshots from the legacy `dashboard_data.json`.
 python3 "$ROOT_DIR/scripts/ingest_from_original_artifacts.py" --apply-to-container
 
@@ -32,3 +46,6 @@ python3 "$ROOT_DIR/scripts/ingest_from_original_artifacts.py" --apply-to-contain
 # without a second manual step.
 echo "→ Running readacross.SubgroupEntityMap backfill (sql/05_backfill_subgroups.sql)…"
 apply_sql "$ROOT_DIR/sql/05_backfill_subgroups.sql"
+
+echo "→ Recomputing SQL-backed P&L benchmarks + recommendations..."
+curl -sS -X POST "http://localhost:5080/api/Pnl/recompute" -H "Content-Type: application/json" || true

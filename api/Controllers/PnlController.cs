@@ -2,6 +2,7 @@ using MagnaReadAcross.Api.Data;
 using MagnaReadAcross.Api.Entities;
 using MagnaReadAcross.Api.Models;
 using MagnaReadAcross.Api.Services;
+using MagnaReadAcross.Api.Services.Pnl;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,12 +20,27 @@ public class PnlController : ControllerBase
     private readonly MagnaDbContext        _db;
     private readonly IPnlBenchmarkService  _benchmarks;
     private readonly IAccessPolicyService  _accessPolicy;
+    private readonly IPnlCalculationEngine _calcEngine;
+    private readonly IPnlRecommendationEngine _recEngine;
+    private readonly IPnlEbitOverlayService _ebitOverlay;
+    private readonly ILogger<PnlController> _logger;
 
-    public PnlController(MagnaDbContext db, IPnlBenchmarkService benchmarks, IAccessPolicyService accessPolicy)
+    public PnlController(
+        MagnaDbContext db,
+        IPnlBenchmarkService benchmarks,
+        IAccessPolicyService accessPolicy,
+        IPnlCalculationEngine calcEngine,
+        IPnlRecommendationEngine recEngine,
+        IPnlEbitOverlayService ebitOverlay,
+        ILogger<PnlController> logger)
     {
         _db         = db;
         _benchmarks = benchmarks;
         _accessPolicy = accessPolicy;
+        _calcEngine = calcEngine;
+        _recEngine = recEngine;
+        _ebitOverlay = ebitOverlay;
+        _logger = logger;
     }
 
     /// <summary>
@@ -72,6 +88,35 @@ public class PnlController : ControllerBase
                           .Skip(skip).Take(Math.Clamp(take, 1, 5000))
                           .ToListAsync(ct);
         return Ok(rows);
+    }
+
+    /// <summary>
+    /// Recompute SQL-backed P&amp;L benchmarks/recommendations from PnlEntries.
+    /// Admin-only operation.
+    /// </summary>
+    [HttpPost("recompute")]
+    public async Task<ActionResult<object>> Recompute(CancellationToken ct = default)
+    {
+        if (!await CanReadPnlAsync(ct))
+        {
+            return Forbid();
+        }
+
+        var started = DateTime.UtcNow;
+        await _calcEngine.RecomputeAllAsync(ct);
+        await _recEngine.RecomputeAllAsync(ct);
+        await _ebitOverlay.ApplyAsync(ct);
+        var elapsedMs = (DateTime.UtcNow - started).TotalMilliseconds;
+
+        var benchmarkCount = await _db.PnlSiteBenchmarks.CountAsync(ct);
+        var recommendationCount = await _db.PnlRecommendations.CountAsync(ct);
+        _logger.LogInformation("P&L recompute finished in {Ms} ms", elapsedMs);
+        return Ok(new
+        {
+            durationMs = Math.Round(elapsedMs, 2),
+            benchmarkCount,
+            recommendationCount
+        });
     }
 
     /// <summary>Cube/Entity/Scenario/Time/Account rollup — drives benchmark cards.</summary>

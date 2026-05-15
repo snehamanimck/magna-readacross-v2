@@ -224,6 +224,21 @@ export interface IPnlRecommendation {
   recommendationText: string;
   opportunityAmount?: number;
   priorityRank: number;
+  spendCategory?: string;
+  primaryDriver?: string;
+  siteValue?: number;
+  benchmarkMedian?: number;
+  quartile?: number;
+  whitespaceEstimate?: number;
+  deploymentCount?: number;
+  deployingDivisions?: string[];
+  anchorMatch?: string;
+  priorityCount?: number;
+  priorityFraction?: number;
+  evidenceStrength?: string;
+  confidence?: number;
+  rationale?: string;
+  computedAtUtc?: string;
 }
 
 export interface IKnowledgeCenterAsset {

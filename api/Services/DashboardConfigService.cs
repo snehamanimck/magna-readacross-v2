@@ -9,7 +9,7 @@ namespace MagnaReadAcross.Api.Services;
 /// <summary>
 /// Builds <see cref="DashboardConfigDto"/> by combining static configuration
 /// (Wave URLs, feedback recipient) with the offline data-quality blocks the
-/// ingest pipeline lands in <c>readacross.DashboardSnapshots</c>. When no
+/// ingest pipeline lands in <c>readacross.DashboardMetaSnapshots</c>. When no
 /// snapshot row exists for a section the strongly-typed
 /// <see cref="DashboardConfigOptions"/> values are used as a fallback so the
 /// endpoint always returns a sensible payload.
@@ -36,7 +36,7 @@ public class DashboardConfigService : IDashboardConfigService
 
     public async Task<DashboardConfigDto> GetAsync(CancellationToken ct = default)
     {
-        var snapshots = await _db.DashboardSnapshots
+        var snapshots = await _db.DashboardMetaSnapshots
             .AsNoTracking()
             .Where(s => s.SectionKey == "cosma_meta"
                      || s.SectionKey == "powertrain_meta"
@@ -82,7 +82,7 @@ public class DashboardConfigService : IDashboardConfigService
     }
 
     private static WorkstreamMetaDto? MetaFromSnapshot(
-        IReadOnlyDictionary<string, Entities.DashboardSnapshot> bySection,
+        IReadOnlyDictionary<string, Entities.DashboardMetaSnapshot> bySection,
         string key)
     {
         if (!bySection.TryGetValue(key, out var snap) || string.IsNullOrWhiteSpace(snap.PayloadJson))

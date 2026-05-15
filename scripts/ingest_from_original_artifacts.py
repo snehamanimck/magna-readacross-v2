@@ -10,9 +10,9 @@ Sources (defaults point at the live magna-readacross/public bundle):
 Target tables:
 - CosmaWaveInitiatives / PowertrainWaveInitiatives / ExteriorsWaveInitiatives / SeatingWaveInitiatives
 - ArchetypeDefinitions / SiteArchetypes / PriorityInitiatives
-- ThoughtStarters / PnlRecommendations
+- ThoughtStarters
 - KnowledgeCenterAssets / VideoLibraryAssets
-- DashboardSnapshots (raw JSON for the meta / filter_options / pnl_*
+- DashboardMetaSnapshots (raw JSON for the meta / filter_options
   blocks that don't have a relational shape, so nothing in the offline
   bundle is dropped on the floor)
 """
@@ -22,6 +22,7 @@ import argparse
 import json
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -238,28 +239,6 @@ def main() -> None:
             }
         )
 
-    rec_rows = []
-    pnl_recs = (dashboard.get("pnl_recommendations") or {}).get("sites", {}) or {}
-    for site, block in pnl_recs.items():
-        # Use the first archetype for this site (recommendations are Cosma).
-        site_archetype = (site_archetypes_map.get(site) or [None])[0]
-        for rec in block.get("recommendations", []) or []:
-            initiative_type = rec.get("initiative_type")
-            rationale = rec.get("rationale")
-            text = f"{initiative_type}: {rationale}" if initiative_type and rationale else (rationale or initiative_type or "")
-            rec_rows.append(
-                {
-                    "Workstream": sql_string("Cosma"),
-                    "Site": sql_string(site),
-                    "Archetype": sql_string(site_archetype),
-                    "InitiativeId": sql_string(None),
-                    "RecommendationText": sql_string(text),
-                    "OpportunityAmount": sql_decimal(rec.get("whitespace_estimate")),
-                    "PriorityRank": sql_int(rec.get("rank")),
-                    "IsActive": "1",
-                }
-            )
-
     knowledge_rows = []
     for s in slides:
         title = s.get("use_case_name") or f"Idea {s.get('idea_number')}"
@@ -291,9 +270,18 @@ def main() -> None:
         "generated", "cosma_meta", "powertrain_meta", "exteriors_meta",
         "seating_meta",
         "filter_options", "archetypes", "site_archetypes",
-        "pnl_benchmarking", "pnl_peer_summary", "pnl_recommendations",
-        "pnl_rec_dl_mfg_policy", "harmonization_notes", "priority_ids",
+        "harmonization_notes", "priority_ids",
     ]
+    disallowed_sections = sorted(
+        key for key in dashboard.keys()
+        if key.startswith("pnl_")
+    )
+    if disallowed_sections:
+        print(
+            "[warn] Ignoring disallowed dashboard sections: "
+            + ", ".join(disallowed_sections),
+            file=sys.stderr,
+        )
     for section in snapshot_sections:
         if section not in dashboard:
             continue
@@ -332,29 +320,33 @@ def main() -> None:
 
     sql_parts: list[str] = [
         "SET NOCOUNT ON;\n",
-        # DashboardSnapshots may not exist in older deployments; create it
+        # DashboardMetaSnapshots may not exist in older deployments; create it
         # on the fly so the ingest script is self-contained.
         (
-            "IF OBJECT_ID('readacross.DashboardSnapshots', 'U') IS NULL\n"
+            "IF OBJECT_ID('readacross.DashboardMetaSnapshots', 'U') IS NULL\n"
             "BEGIN\n"
-            "    CREATE TABLE readacross.DashboardSnapshots\n"
+            "    CREATE TABLE readacross.DashboardMetaSnapshots\n"
             "    (\n"
-            "        SnapshotId       BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_DashboardSnapshots PRIMARY KEY,\n"
-            "        SectionKey       NVARCHAR(64)    NOT NULL,\n"
-            "        GeneratedAtUtc   DATETIME2(0)    NOT NULL CONSTRAINT DF_DashboardSnapshots_Gen DEFAULT (SYSUTCDATETIME()),\n"
+            "        SnapshotId       BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_DashboardMetaSnapshots PRIMARY KEY,\n"
+            "        SectionKey       NVARCHAR(64)    NOT NULL\n"
+            "            CONSTRAINT CK_DashboardMetaSnapshots_SectionKey\n"
+            "            CHECK (SectionKey IN (\n"
+            "                N'generated', N'cosma_meta', N'powertrain_meta', N'exteriors_meta', N'seating_meta',\n"
+            "                N'filter_options', N'archetypes', N'site_archetypes', N'harmonization_notes', N'priority_ids'\n"
+            "            )),\n"
+            "        GeneratedAtUtc   DATETIME2(0)    NOT NULL CONSTRAINT DF_DashboardMetaSnapshots_Gen DEFAULT (SYSUTCDATETIME()),\n"
             "        SourceFile       NVARCHAR(512)   NULL,\n"
             "        PayloadJson      NVARCHAR(MAX)   NOT NULL,\n"
-            "        LoadedAtUtc      DATETIME2(0)    NOT NULL CONSTRAINT DF_DashboardSnapshots_Loaded DEFAULT (SYSUTCDATETIME())\n"
+            "        LoadedAtUtc      DATETIME2(0)    NOT NULL CONSTRAINT DF_DashboardMetaSnapshots_Loaded DEFAULT (SYSUTCDATETIME())\n"
             "    );\n"
-            "    CREATE INDEX IX_DashboardSnapshots_Section_Generated\n"
-            "        ON readacross.DashboardSnapshots (SectionKey, GeneratedAtUtc DESC);\n"
+            "    CREATE INDEX IX_DashboardMetaSnapshots_Section_Generated\n"
+            "        ON readacross.DashboardMetaSnapshots (SectionKey, GeneratedAtUtc DESC);\n"
             "END;\n"
             "GO\n"
         ),
-        "DELETE FROM readacross.DashboardSnapshots;\n",
+        "DELETE FROM readacross.DashboardMetaSnapshots;\n",
         "DELETE FROM readacross.VideoLibraryAssets;\n",
         "DELETE FROM readacross.KnowledgeCenterAssets;\n",
-        "DELETE FROM readacross.PnlRecommendations;\n",
         "DELETE FROM readacross.ThoughtStarters;\n",
         "DELETE FROM readacross.PriorityInitiatives;\n",
         "DELETE FROM readacross.SiteArchetypes;\n",
@@ -420,11 +412,6 @@ def main() -> None:
             thought_rows,
         ),
         build_insert_sql(
-            "PnlRecommendations",
-            ["Workstream", "Site", "Archetype", "InitiativeId", "RecommendationText", "OpportunityAmount", "PriorityRank", "IsActive"],
-            rec_rows,
-        ),
-        build_insert_sql(
             "KnowledgeCenterAssets",
             ["Title", "SpendCategory", "Workstream", "Description", "SlideUrl", "ThumbnailUrl", "SortOrder", "IsActive"],
             knowledge_rows,
@@ -435,7 +422,7 @@ def main() -> None:
             video_rows,
         ),
         build_insert_sql(
-            "DashboardSnapshots",
+            "DashboardMetaSnapshots",
             ["SectionKey", "GeneratedAtUtc", "SourceFile", "PayloadJson"],
             snapshot_rows,
         ),
@@ -448,10 +435,9 @@ def main() -> None:
             "UNION ALL SELECT 'SiteArchetypes', COUNT(*) FROM readacross.SiteArchetypes\n"
             "UNION ALL SELECT 'PriorityInitiatives', COUNT(*) FROM readacross.PriorityInitiatives\n"
             "UNION ALL SELECT 'ThoughtStarters', COUNT(*) FROM readacross.ThoughtStarters\n"
-            "UNION ALL SELECT 'PnlRecommendations', COUNT(*) FROM readacross.PnlRecommendations\n"
             "UNION ALL SELECT 'KnowledgeCenterAssets', COUNT(*) FROM readacross.KnowledgeCenterAssets\n"
             "UNION ALL SELECT 'VideoLibraryAssets', COUNT(*) FROM readacross.VideoLibraryAssets\n"
-            "UNION ALL SELECT 'DashboardSnapshots', COUNT(*) FROM readacross.DashboardSnapshots;\n"
+            "UNION ALL SELECT 'DashboardMetaSnapshots', COUNT(*) FROM readacross.DashboardMetaSnapshots;\n"
             "GO\n"
         ),
     ]
@@ -463,7 +449,7 @@ def main() -> None:
         f"Prepared rows => cosma:{len(cosma_rows)} pt:{len(pt_rows)} ext:{len(ext_rows)} "
         f"seat:{len(seat_rows)} "
         f"archetypes:{len(archetype_rows)} site_archetypes:{len(site_archetype_rows)} "
-        f"priority:{len(priority_rows)} thought:{len(thought_rows)} recs:{len(rec_rows)} "
+        f"priority:{len(priority_rows)} thought:{len(thought_rows)} "
         f"knowledge:{len(knowledge_rows)} video:{len(video_rows)} snapshots:{len(snapshot_rows)}"
     )
 

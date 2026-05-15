@@ -41,6 +41,21 @@ public class InsightsService : IInsightsService
                 RecommendationText = x.RecommendationText,
                 OpportunityAmount = x.OpportunityAmount,
                 PriorityRank = x.PriorityRank,
+                SpendCategory = x.SpendCategory,
+                PrimaryDriver = x.PrimaryDriver,
+                SiteValue = x.SiteValue,
+                BenchmarkMedian = x.BenchmarkMedian,
+                Quartile = x.Quartile,
+                WhitespaceEstimate = x.WhitespaceEstimate,
+                DeploymentCount = x.DeploymentCount,
+                DeployingDivisions = x.DeployingDivisions,
+                AnchorMatch = x.AnchorMatch,
+                PriorityCount = x.PriorityCount,
+                PriorityFraction = x.PriorityFraction,
+                EvidenceStrength = x.EvidenceStrength,
+                Confidence = x.Confidence,
+                Rationale = x.Rationale,
+                ComputedAtUtc = x.ComputedAtUtc,
             })
             .ToListAsync(ct);
 

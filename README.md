@@ -572,6 +572,12 @@ GET /api/Pnl
 
 GET /api/Pnl/summary?cube=Cosma&scenario=Budget26&time=2025M1
 → 200 PnlSummaryRow[]  // grouped by Cube/Entity/Scenario/Time/Account
+
+GET /api/Pnl/benchmarks
+→ 200 PnlBenchmarksDto // SQL-derived monthly_pnl + benchmarks + rankings
+
+POST /api/Pnl/recompute
+→ 200 { durationMs, benchmarkCount, recommendationCount } // recalculates derived P&L tables
 ```
 
 ```ts
@@ -620,7 +626,7 @@ DTO shapes (see `api/Models/InsightsDtos.cs` and `api/Models/DashboardConfigDto.
 
 ```ts
 ThoughtStarterDto       { thoughtStarterId, spendCategory?, mfgProcess?, lever?, subLever?, text, advancedAutomation, sortOrder }
-PnlRecommendationDto    { pnlRecommendationId, workstream, site, archetype?, initiativeId?, recommendationText, opportunityAmount?, priorityRank }
+PnlRecommendationDto    { pnlRecommendationId, workstream, site, archetype?, initiativeId?, recommendationText, opportunityAmount?, priorityRank, spendCategory?, primaryDriver?, siteValue?, benchmarkMedian?, quartile?, whitespaceEstimate?, deploymentCount?, deployingDivisions[], anchorMatch?, priorityCount?, priorityFraction?, evidenceStrength?, confidence?, rationale?, computedAtUtc }
 KnowledgeCenterAssetDto { knowledgeAssetId, title, spendCategory?, workstream?, description?, slideUrl, thumbnailUrl?, sortOrder }
 VideoLibraryAssetDto    { videoAssetId, title, spendCategory?, workstream?, description?, videoUrl, thumbnailUrl?, durationSeconds?, sortOrder }
 ArchetypeDefinitionDto  { archetypeKey, displayName, workstream, description? }
@@ -646,6 +652,16 @@ PriorityInitiativeDto   { initiativeId, priorityLabel, workstream? }
   };
 }
 ```
+
+P&L benchmarking data flow now runs entirely from SQL:
+
+- Raw facts: `readacross.PnlEntries`
+- Mapping metadata: `readacross.PnlAccountMap`, `readacross.PnlSiteDim`
+- Derived outputs: `readacross.PnlSiteBenchmarks`, `readacross.PnlAnchors`, `readacross.PnlRankings`, enriched `readacross.PnlRecommendations`
+- API projection: `GET /api/Pnl/benchmarks` via `PnlBenchmarkService` (no `api/Resources/pnl-benchmarks.json`)
+
+`DashboardMetaSnapshots` is now the runtime metadata store for `dashboard-config`.
+`DashboardSnapshots` is legacy-only and no longer serves P&L runtime sections.
 
 The SPA fetches this once at boot via `DashboardChromeService.bootAsync()` and
 exposes the result through signals (`config`, `priorityIds`, `feedbackEmail`,
@@ -1143,7 +1159,70 @@ make down                  # docker compose down
 make logs                  # tail compose logs
 make ingest                # sync media + reload SQL from original artifacts
 make ingest-and-restart    # ingest + rebuild api/web
+make recompute-pnl         # POST /api/Pnl/recompute
 ```
+
+### P&L bootstrap + recompute runbook
+
+Use this when you want to refresh `readacross.PnlEntries` from the offline
+monthly panel and then regenerate all derived benchmark/recommendation tables.
+
+1) Load `PnlEntries` from the offline monthly panel:
+
+```bash
+python3 scripts/load_pnl_entries_from_monthly_pnl.py --apply-to-container
+```
+
+Current loader behavior:
+
+- Source: `../magna-readacross/.cursor/p_and_l/outputs/standalone/pnl_benchmarking.json`
+- Writes monthly rows for:
+  - `Direct Labor (DL)`
+  - `Indirect Labor (IDL)`
+  - `Production Materials`
+  - `Fixed Overhead (FOH)`
+  - `Variable Overhead (VOH)`
+  - `Scrap (303122)`
+  - `Production Sales`
+  - `Total Sales`
+  - synthetic `EBITDA` (bootstrap estimate from monthly panel)
+- Idempotent reset of `Scenario LIKE 'Actual%'` slice before insert.
+
+2) Ensure the P&L calc schema/views are applied (one-time or after pull):
+
+```bash
+docker cp sql/12_schema_pnl_calc.sql magna-readacross-sql:/tmp/12_schema_pnl_calc.sql
+docker cp sql/13_views_pnl.sql magna-readacross-sql:/tmp/13_views_pnl.sql
+docker exec magna-readacross-sql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Magna#Seed2026!' -d MagnaReadAcross -C -b -i /tmp/12_schema_pnl_calc.sql
+docker exec magna-readacross-sql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Magna#Seed2026!' -d MagnaReadAcross -C -b -i /tmp/13_views_pnl.sql
+```
+
+3) Rebuild/restart API (if service code changed), then recompute:
+
+```bash
+docker compose -f docker-compose.yml --project-directory . up -d --build api
+curl -sS -X POST "http://localhost:5080/api/Pnl/recompute" -H "Content-Type: application/json"
+```
+
+4) Validate derived table counts:
+
+```bash
+docker exec -i magna-readacross-sql /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Magna#Seed2026!' -d MagnaReadAcross -C -Q \
+  "SELECT COUNT(*) AS PnlSiteBenchmarks FROM readacross.PnlSiteBenchmarks;
+   SELECT COUNT(*) AS PnlRecommendations FROM readacross.PnlRecommendations;
+   SELECT COUNT(*) AS PnlRankings FROM readacross.PnlRankings;
+   SELECT COUNT(*) AS PnlAnchors FROM readacross.PnlAnchors;"
+```
+
+Reference outcome from the latest successful run:
+
+- `PnlEntries` (`Actual%`): `2862`
+- `/api/Pnl/recompute`: `benchmarkCount=371`, `recommendationCount=159`
+- `PnlSiteBenchmarks`: `371`
+- `PnlRecommendations`: `159`
+- `PnlRankings`: `371`
+- `PnlAnchors`: `7`
 
 ### Local SQL Server connection (for ad-hoc inspection)
 
