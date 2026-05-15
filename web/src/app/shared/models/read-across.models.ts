@@ -318,8 +318,42 @@ export interface IDashboardConfig {
   feedbackEmail: string;
   /** keyed by workstream slug — `cosma`, `powertrain`, `ignite`. */
   waveBaseUrls: Record<string, string>;
+  mappingConfig?: IMappingConfig;
   cosmaMeta?: IWorkstreamMeta;
   powertrainMeta?: IWorkstreamMeta;
   exteriorsMeta?: IWorkstreamMeta;
   seatingMeta?: IWorkstreamMeta;
+}
+
+export interface IMappingConfig {
+  magnaDivisionAliases: Record<string, string>;
+  recommendationConfig: IPnlRecommendationRuntimeConfig;
+}
+
+export interface IPnlRecommendationRuntimeConfig {
+  cosmaSubgroupMap: Record<string, string>;
+  archetypeMfgAllowed: Record<string, string[]>;
+  spendCategoryMetricMap: Record<string, string[]>;
+  scoring: IPnlRecommendationScoringConfig;
+}
+
+export interface IPnlRecommendationScoringConfig {
+  costBaseTrailingMonths: number;
+  costBaseAnnualizationFactor: number;
+  maxDrilldownItems: number;
+  maxSiteRecommendations: number;
+  minPeerSites: number;
+  peerNrbRelevanceScale: number;
+  opportunityWhitespaceFactor: number;
+  opportunityUnderrepresentedFactor: number;
+  opportunityTopPeerMinCount: number;
+  opportunityTopPeerFraction: number;
+  bestPeersCount: number;
+  opportunityWeight: number;
+  pnlRelevanceWeight: number;
+  nrbShortfallWeight: number;
+  archetypeMatchWeight: number;
+  regionMatchWeight: number;
+  whitespaceBonusWeight: number;
+  pnlGapScaleFactor: number;
 }

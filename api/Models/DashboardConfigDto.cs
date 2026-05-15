@@ -23,6 +23,12 @@ public record DashboardConfigDto
     /// </summary>
     public IDictionary<string, string> WaveBaseUrls { get; init; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Runtime UI configuration consumed by Angular services to avoid
+    /// hardcoding recommendation heuristics and workstream mappings.
+    /// </summary>
+    public MappingConfigDto MappingConfig { get; init; } = new();
+
     public WorkstreamMetaDto? CosmaMeta { get; init; }
     public WorkstreamMetaDto? PowertrainMeta { get; init; }
     public WorkstreamMetaDto? ExteriorsMeta { get; init; }
@@ -44,4 +50,40 @@ public record WorkstreamMetaDto
     public string? LastValidated { get; init; }
     public IReadOnlyList<string> ValidationNotes { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> ExclusionRules  { get; init; } = Array.Empty<string>();
+}
+
+public record MappingConfigDto
+{
+    public IDictionary<string, string> MagnaDivisionAliases { get; init; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    public PnlRecommendationRuntimeDto RecommendationConfig { get; init; } = new();
+}
+
+public record PnlRecommendationRuntimeDto
+{
+    public IDictionary<string, string> CosmaSubgroupMap { get; init; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    public IDictionary<string, IReadOnlyList<string>> ArchetypeMfgAllowed { get; init; } = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+    public IDictionary<string, IReadOnlyList<string>> SpendCategoryMetricMap { get; init; } = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+    public PnlRecommendationScoringDto Scoring { get; init; } = new();
+}
+
+public record PnlRecommendationScoringDto
+{
+    public int CostBaseTrailingMonths { get; init; } = 3;
+    public decimal CostBaseAnnualizationFactor { get; init; } = 12m;
+    public int MaxDrilldownItems { get; init; } = 25;
+    public int MaxSiteRecommendations { get; init; } = 3;
+    public int MinPeerSites { get; init; } = 2;
+    public decimal PeerNrbRelevanceScale { get; init; } = 500_000m;
+    public decimal OpportunityWhitespaceFactor { get; init; } = 0.6m;
+    public decimal OpportunityUnderrepresentedFactor { get; init; } = 0.4m;
+    public int OpportunityTopPeerMinCount { get; init; } = 3;
+    public decimal OpportunityTopPeerFraction { get; init; } = 0.3m;
+    public int BestPeersCount { get; init; } = 5;
+    public decimal OpportunityWeight { get; init; } = 0.35m;
+    public decimal PnlRelevanceWeight { get; init; } = 0.20m;
+    public decimal NrbShortfallWeight { get; init; } = 0.15m;
+    public decimal ArchetypeMatchWeight { get; init; } = 0.15m;
+    public decimal RegionMatchWeight { get; init; } = 0.10m;
+    public decimal WhitespaceBonusWeight { get; init; } = 0.05m;
+    public decimal PnlGapScaleFactor { get; init; } = 5m;
 }

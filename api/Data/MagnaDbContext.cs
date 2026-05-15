@@ -29,6 +29,11 @@ public class MagnaDbContext : DbContext
     public DbSet<VideoLibraryAsset>         VideoLibraryAssets        { get => Set<VideoLibraryAsset>(); }
     public DbSet<DashboardSnapshot>         DashboardSnapshots        { get => Set<DashboardSnapshot>(); }
     public DbSet<DashboardMetaSnapshot>     DashboardMetaSnapshots    { get => Set<DashboardMetaSnapshot>(); }
+    public DbSet<MagnaDivisionAlias>        MagnaDivisionAliases      { get => Set<MagnaDivisionAlias>(); }
+    public DbSet<CosmaSubgroupMap>          CosmaSubgroupMaps         { get => Set<CosmaSubgroupMap>(); }
+    public DbSet<ArchetypeMfgAllowed>       ArchetypeMfgAllowed       { get => Set<ArchetypeMfgAllowed>(); }
+    public DbSet<SpendCategoryMetricMap>    SpendCategoryMetricMap    { get => Set<SpendCategoryMetricMap>(); }
+    public DbSet<RecommendationScoring>     RecommendationScoring     { get => Set<RecommendationScoring>(); }
     public DbSet<AccessPolicyAssignment>    AccessPolicyAssignments   { get => Set<AccessPolicyAssignment>(); }
 
     protected override void OnModelCreating(ModelBuilder b)

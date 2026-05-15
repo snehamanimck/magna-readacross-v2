@@ -747,7 +747,60 @@ empty in the SPA.
 | `ArchetypeDefinitionDto`     | `ArchetypeDefinitions`                             | `04_seed_mapping_insights.sql`                          |
 | `SiteArchetypeDto`           | `SiteArchetypes`                                   | `04_seed_mapping_insights.sql`                          |
 | `PriorityInitiativeDto`      | `PriorityInitiatives`                              | `06_seed_priority_initiatives.sql` (top NRB demo)       |
-| `DashboardConfigDto`         | `appsettings.json` → `DashboardConfig`             | configuration only (no SQL table)                       |
+| `DashboardConfigDto`         | `DashboardMetaSnapshots` + runtime mapping/scoring tables (`MagnaDivisionAliases`, `CosmaSubgroupMap`, `ArchetypeMfgAllowed`, `SpendCategoryMetricMap`, `RecommendationScoring`) | `make ingest` (+ `sql/15_ui_runtime_tables.sql` for runtime knobs) |
+
+### Runtime Mapping & Recommendation Config (quick index)
+
+- **SQL tables + sample values**: see `Runtime Config: SQL tables + sample values` in this README.
+- **Backend wiring**: see `Runtime Config: backend wiring` in this README.
+- **UI wiring**: see `Runtime Config: UI wiring` in this README.
+- **Ops runbook**: see `APP_MAINTENANCE.md` section `Runtime mapping/recommendation config tables`.
+
+### Runtime Config: SQL tables + sample values
+
+Canonical tables (legacy `UiRuntime*` tables are removed by `sql/15_ui_runtime_tables.sql`):
+
+- `readacross.MagnaDivisionAliases`
+- `readacross.CosmaSubgroupMap`
+- `readacross.ArchetypeMfgAllowed`
+- `readacross.SpendCategoryMetricMap`
+- `readacross.RecommendationScoring`
+
+Sample verification query:
+
+```sql
+SELECT TOP (10) * FROM readacross.MagnaDivisionAliases ORDER BY WorkstreamName;
+SELECT TOP (10) * FROM readacross.CosmaSubgroupMap ORDER BY SiteName;
+SELECT TOP (10) * FROM readacross.ArchetypeMfgAllowed ORDER BY ArchetypeKey, MfgProcess;
+SELECT TOP (10) * FROM readacross.SpendCategoryMetricMap ORDER BY SpendCategory, MetricKey;
+SELECT TOP (1)  * FROM readacross.RecommendationScoring ORDER BY UpdatedAtUtc DESC;
+```
+
+### Runtime Config: backend wiring
+
+- DTO/contract:
+  - `api/Models/DashboardConfigDto.cs`
+  - `api/Models/DashboardConfigOptions.cs`
+- Data access:
+  - `api/Data/MagnaDbContext.cs`
+  - `api/Entities/MagnaDivisionAlias.cs`
+  - `api/Entities/CosmaSubgroupMap.cs`
+  - `api/Entities/ArchetypeMfgAllowed.cs`
+  - `api/Entities/SpendCategoryMetricMap.cs`
+  - `api/Entities/RecommendationScoring.cs`
+- Assembly logic:
+  - `api/Services/DashboardConfigService.cs` (`BuildMappingConfigAsync`)
+
+### Runtime Config: UI wiring
+
+- API model contract:
+  - `web/src/app/shared/models/read-across.models.ts`
+    - `IDashboardConfig.mappingConfig`
+    - `IMappingConfig.magnaDivisionAliases`
+    - `IMappingConfig.recommendationConfig`
+- Consumers:
+  - `web/src/app/core/services/dashboard-chrome.service.ts`
+  - `web/src/app/core/services/pnl-rec.service.ts`
 
 ### Subgroup data flow (worth calling out)
 

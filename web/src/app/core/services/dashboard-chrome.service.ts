@@ -1,7 +1,11 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 
 import { ReadAcrossAppService } from '@domains/read-across';
-import { IDashboardConfig, IPriorityInitiative } from '@app/models';
+import {
+  IDashboardConfig,
+  IPnlRecommendationRuntimeConfig,
+  IPriorityInitiative,
+} from '@app/models';
 
 /**
  * Cross-cutting "chrome" data the SPA pulls once at boot:
@@ -35,10 +39,16 @@ export class DashboardChromeService {
   readonly lastRefreshedAt = this._lastRefreshedAt.asReadonly();
 
   readonly feedbackEmail = computed(
-    () => this._config()?.feedbackEmail ?? 'greg_shannon@mckinsey.com',
+    () => this._config()?.feedbackEmail ?? '',
   );
 
   readonly generated = computed(() => this._config()?.generated ?? '');
+  readonly magnaDivisionAliases = computed(
+    () => this._config()?.mappingConfig?.magnaDivisionAliases ?? {},
+  );
+  readonly recommendationConfig = computed<IPnlRecommendationRuntimeConfig | undefined>(
+    () => this._config()?.mappingConfig?.recommendationConfig,
+  );
 
   /** Lazy boot — call once from the app shell. Subsequent calls are no-ops. */
   async bootAsync(): Promise<void> {
@@ -86,7 +96,8 @@ export class DashboardChromeService {
    */
   buildWaveCardUrl(initiativeId: string, workstream?: string): string {
     const slug = this.workstreamSlug(workstream);
-    const base = this._config()?.waveBaseUrls?.[slug] ?? `https://magna-${slug}.mckinseywave.com`;
+    const base = this._config()?.waveBaseUrls?.[slug];
+    if (!base) return '#';
     const numeric = String(initiativeId ?? '').replace(/\D/g, '') || initiativeId;
     return `${base}/card/${numeric}`;
   }
@@ -99,10 +110,10 @@ export class DashboardChromeService {
   closeDataQuality(): void { this._dataQualityOpen.set(false); }
 
   private workstreamSlug(workstream?: string): string {
-    const ws = (workstream ?? '').toLowerCase();
-    if (ws === 'powertrain') return 'powertrain';
-    if (ws === 'exteriors')  return 'ignite';
-    return 'cosma';
+    const raw = (workstream ?? '').trim();
+    if (!raw) return 'cosma';
+    const byName = this.magnaDivisionAliases();
+    return byName[raw] ?? byName[raw.toLowerCase()] ?? 'cosma';
   }
 
   private toIdSet(rows: IPriorityInitiative[]): ReadonlySet<string> {

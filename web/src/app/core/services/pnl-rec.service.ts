@@ -1,11 +1,13 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 
 import {
   IInitiative,
   IPnlBenchmarks,
   IPnlMonthlyPanel,
+  IPnlRecommendationRuntimeConfig,
   IPnlSiteBenchmark,
 } from '@app/models';
+import { DashboardChromeService } from './dashboard-chrome.service';
 
 /* ──────────────────────────────────────────────────────────────────────────
    PnlRecService
@@ -27,89 +29,100 @@ import {
    opportunity + peer bar + "X targeted initiatives" footer.
    ────────────────────────────────────────────────────────────────────────── */
 
-/** Cosma site → regional subgroup. Falls back to this map when the
- *  benchmarks blob doesn't carry a subgroup for the site (legacy used the
- *  same fallback under `COSMA_SUBGROUP_MAP`). */
-export const COSMA_SUBGROUP_MAP: Readonly<Record<string, string>> = {
-  'Eagle Bend': 'USA East',
-  BGM: 'USA East',
-  Vehtek: 'USA East',
-  CBAM: 'USA East',
-  Autolaunch: 'USA East',
-  Formet: 'Canada',
-  Karmax: 'Canada',
-  Modatek: 'Canada',
-  Presstran: 'Canada',
-  MBCM: 'Canada',
-  'P&F': 'Canada',
-  Deco: 'Canada',
-  'Magna Structures Meadowvale': 'Canada',
-  Formex: 'Mexico',
-  'San Luis Metal Forming': 'Mexico',
-  Autotek: 'Mexico',
-  Estampados: 'Mexico',
-  Sonora: 'Mexico',
-  CSL: 'Mexico',
-  Salzgitter: 'Cosma EU',
-  'Heavy Stamping': 'Cosma EU',
-  Formpol: 'Cosma EU',
-  Heiligenstadt: 'Cosma EU',
-  Cartech: 'Cosma EU',
-  Spain: 'Cosma EU',
-  Stity: 'Cosma EU',
-  Presstec: 'Cosma EU',
-  MLE: 'Cosma EU',
-  Hungary: 'Cosma EU',
-  'BDW Markt Schwaben': 'Casting and UK',
-  CCUK: 'Casting and UK',
-  Telford: 'Casting and UK',
-  'Kamtek Casting': 'Casting and UK',
-  'BDW Soest': 'Casting and UK',
-  CCMi: 'Casting and UK',
-  'Magna Casting Poland': 'Casting and UK',
-  Drive: 'USA South',
-  Kamtek: 'USA South',
-  SJP: 'Brazil',
-  SAP: 'Brazil',
-  Joinville: 'Brazil',
-  Ibirite: 'Brazil',
-  Shanghai: 'Cosma APAC',
-  Xingqiao: 'Cosma APAC',
-  Shenyang: 'Cosma APAC',
-  Changsha: 'Cosma APAC',
-  Hefei: 'Cosma APAC',
-  Chongqing: 'Cosma APAC',
-  Tianjin: 'Cosma APAC',
-  Guangzhou: 'Cosma APAC',
-  Changchun: 'Cosma APAC',
-  Xingqiaorui: 'Cosma APAC',
-  MPJ: 'Cosma APAC',
-  LMV: 'USA West',
-  MEVS: 'USA West',
-  Williamsburg: 'USA West',
-};
-
-/**
- * DL manufacturing-process gate: a DL row is eligible for a site only if the
- * site's archetype is known to deploy that mfg_process (legacy
- * `ARCHETYPE_MFG_ALLOWED`). Sites with no archetype are exempt from the
- * gate.
- */
-const ARCHETYPE_MFG_ALLOWED: Readonly<Record<string, ReadonlySet<string>>> = {
-  Assembly:                  new Set(['Assembly', 'Cold stamp', 'E-coat', 'Laser', 'Other']),
-  'Auto-launch':             new Set(['Assembly', 'Laser', 'Other']),
-  Casting:                   new Set(['Assembly', 'Casting', 'Cold stamp', 'Other']),
-  'Forming and BIW':         new Set(['Assembly', 'Cold stamp', 'E-coat', 'Hot form', 'Hydroform', 'Laser', 'Other']),
-  Framing:                   new Set(['Assembly', 'Cold stamp', 'Hot form', 'Hydroform', 'Laser', 'Other']),
-  'Large Class A Facilities': new Set(['Assembly', 'Cold stamp', 'E-coat', 'Laser', 'Other']),
-  Tooling:                   new Set(['Other']),
-};
-
-const SC_TO_PNL_METRICS: Readonly<Record<string, ReadonlyArray<string>>> = {
-  DL:                    ['labour_benefits_ratio', 'wages_ratio'],
-  IDL:                   ['labour_benefits_ratio', 'wages_ratio'],
-  VOH:                   ['voh_ratio'],
-  'Material Conveyance': ['voh_ratio'],
+const DEFAULT_PNL_REC_RUNTIME: IPnlRecommendationRuntimeConfig = {
+  cosmaSubgroupMap: {
+    'Eagle Bend': 'USA East',
+    BGM: 'USA East',
+    Vehtek: 'USA East',
+    CBAM: 'USA East',
+    Autolaunch: 'USA East',
+    Formet: 'Canada',
+    Karmax: 'Canada',
+    Modatek: 'Canada',
+    Presstran: 'Canada',
+    MBCM: 'Canada',
+    'P&F': 'Canada',
+    Deco: 'Canada',
+    'Magna Structures Meadowvale': 'Canada',
+    Formex: 'Mexico',
+    'San Luis Metal Forming': 'Mexico',
+    Autotek: 'Mexico',
+    Estampados: 'Mexico',
+    Sonora: 'Mexico',
+    CSL: 'Mexico',
+    Salzgitter: 'Cosma EU',
+    'Heavy Stamping': 'Cosma EU',
+    Formpol: 'Cosma EU',
+    Heiligenstadt: 'Cosma EU',
+    Cartech: 'Cosma EU',
+    Spain: 'Cosma EU',
+    Stity: 'Cosma EU',
+    Presstec: 'Cosma EU',
+    MLE: 'Cosma EU',
+    Hungary: 'Cosma EU',
+    'BDW Markt Schwaben': 'Casting and UK',
+    CCUK: 'Casting and UK',
+    Telford: 'Casting and UK',
+    'Kamtek Casting': 'Casting and UK',
+    'BDW Soest': 'Casting and UK',
+    CCMi: 'Casting and UK',
+    'Magna Casting Poland': 'Casting and UK',
+    Drive: 'USA South',
+    Kamtek: 'USA South',
+    SJP: 'Brazil',
+    SAP: 'Brazil',
+    Joinville: 'Brazil',
+    Ibirite: 'Brazil',
+    Shanghai: 'Cosma APAC',
+    Xingqiao: 'Cosma APAC',
+    Shenyang: 'Cosma APAC',
+    Changsha: 'Cosma APAC',
+    Hefei: 'Cosma APAC',
+    Chongqing: 'Cosma APAC',
+    Tianjin: 'Cosma APAC',
+    Guangzhou: 'Cosma APAC',
+    Changchun: 'Cosma APAC',
+    Xingqiaorui: 'Cosma APAC',
+    MPJ: 'Cosma APAC',
+    LMV: 'USA West',
+    MEVS: 'USA West',
+    Williamsburg: 'USA West',
+  },
+  archetypeMfgAllowed: {
+    Assembly: ['Assembly', 'Cold stamp', 'E-coat', 'Laser', 'Other'],
+    'Auto-launch': ['Assembly', 'Laser', 'Other'],
+    Casting: ['Assembly', 'Casting', 'Cold stamp', 'Other'],
+    'Forming and BIW': ['Assembly', 'Cold stamp', 'E-coat', 'Hot form', 'Hydroform', 'Laser', 'Other'],
+    Framing: ['Assembly', 'Cold stamp', 'Hot form', 'Hydroform', 'Laser', 'Other'],
+    'Large Class A Facilities': ['Assembly', 'Cold stamp', 'E-coat', 'Laser', 'Other'],
+    Tooling: ['Other'],
+  },
+  spendCategoryMetricMap: {
+    DL: ['labour_benefits_ratio', 'wages_ratio'],
+    IDL: ['labour_benefits_ratio', 'wages_ratio'],
+    VOH: ['voh_ratio'],
+    'Material Conveyance': ['voh_ratio'],
+  },
+  scoring: {
+    costBaseTrailingMonths: 3,
+    costBaseAnnualizationFactor: 12,
+    maxDrilldownItems: 25,
+    maxSiteRecommendations: 3,
+    minPeerSites: 2,
+    peerNrbRelevanceScale: 500_000,
+    opportunityWhitespaceFactor: 0.6,
+    opportunityUnderrepresentedFactor: 0.4,
+    opportunityTopPeerMinCount: 3,
+    opportunityTopPeerFraction: 0.3,
+    bestPeersCount: 5,
+    opportunityWeight: 0.35,
+    pnlRelevanceWeight: 0.2,
+    nrbShortfallWeight: 0.15,
+    archetypeMatchWeight: 0.15,
+    regionMatchWeight: 0.1,
+    whitespaceBonusWeight: 0.05,
+    pnlGapScaleFactor: 5,
+  },
 };
 
 /** Drill-down peer initiative carries a `_peerSite` helper. */
@@ -180,6 +193,12 @@ export interface IPnlRecCard {
 
 @Injectable({ providedIn: 'root' })
 export class PnlRecService {
+  private readonly chrome = inject(DashboardChromeService);
+
+  private runtime(): IPnlRecommendationRuntimeConfig {
+    return this.chrome.recommendationConfig() ?? DEFAULT_PNL_REC_RUNTIME;
+  }
+
   /**
    * Build a heatmap-row index keyed by `(sc, mp, lv, sl)` from the full
    * Cosma initiative list. Mirrors legacy `_buildHeatmapRowIndex`.
@@ -226,12 +245,17 @@ export class PnlRecService {
    * `monthly_pnl` panel (e.g. Powertrain / Exteriors).
    */
   getSiteCostBase(siteName: string, benchmarks: IPnlBenchmarks): ISiteCostBase | undefined {
+    const scoring = this.runtime().scoring;
+    const trailingMonths = Math.max(1, Math.floor(scoring.costBaseTrailingMonths || 3));
+    const annualization = Number.isFinite(scoring.costBaseAnnualizationFactor)
+      ? scoring.costBaseAnnualizationFactor
+      : 12;
     const panel: IPnlMonthlyPanel | undefined = benchmarks.monthlyPnl?.[siteName];
     if (!panel) return undefined;
     const t3avg = (arr?: (number | null)[] | null): number => {
-      const last3 = (arr ?? []).slice(-3).filter((x): x is number => x != null);
-      if (last3.length === 0) return 0;
-      return last3.reduce((a, b) => a + b, 0) / last3.length;
+      const lastN = (arr ?? []).slice(-trailingMonths).filter((x): x is number => x != null);
+      if (lastN.length === 0) return 0;
+      return lastN.reduce((a, b) => a + b, 0) / lastN.length;
     };
     const c = panel.costs ?? {} as IPnlMonthlyPanel['costs'];
     const lb    = t3avg(c.labourBenefits);
@@ -240,7 +264,7 @@ export class PnlRecService {
     const vm    = t3avg(c.variableMoh);
     const scrap = t3avg(c.scrap);
     const total = lb + w + fm + vm + scrap;
-    return { lb, wages: w, voh: fm + vm, scrap, total, annualized: total * 12 };
+    return { lb, wages: w, voh: fm + vm, scrap, total, annualized: total * annualization };
   }
 
   /**
@@ -269,7 +293,7 @@ export class PnlRecService {
     if (rowSl && rowSl.toLowerCase().includes('scrap')) {
       return gaps['scrap_ratio']?.gap ?? 0;
     }
-    const keys = SC_TO_PNL_METRICS[rowSc] ?? [];
+    const keys = this.runtime().spendCategoryMetricMap[rowSc] ?? [];
     let mx = 0;
     for (const k of keys) mx = Math.max(mx, gaps[k]?.gap ?? 0);
     return mx;
@@ -305,8 +329,9 @@ export class PnlRecService {
     siteArch: string,
     evidenceSet: Set<string> | undefined,
   ): boolean {
+    const archAllowed = this.runtime().archetypeMfgAllowed;
     if (!mfgProcess) return true;
-    if (siteArch && ARCHETYPE_MFG_ALLOWED[siteArch] && !ARCHETYPE_MFG_ALLOWED[siteArch]!.has(mfgProcess)) {
+    if (siteArch && archAllowed[siteArch] && !archAllowed[siteArch]!.includes(mfgProcess)) {
       return false;
     }
     const hasAnyEvidence = !!evidenceSet && evidenceSet.size > 0;
@@ -323,11 +348,17 @@ export class PnlRecService {
     row: IHeatmapRow,
     siteName: string,
     benchmarks: IPnlBenchmarks,
-    maxItems = 25,
+    maxItems?: number,
   ): IPnlDrillInitiative[] {
+    const scoreCfg = this.runtime().scoring;
+    const effectiveMaxItems = maxItems ?? scoreCfg.maxDrilldownItems;
+    const peerNrbScale = Number.isFinite(scoreCfg.peerNrbRelevanceScale) && scoreCfg.peerNrbRelevanceScale > 0
+      ? scoreCfg.peerNrbRelevanceScale
+      : 500_000;
+    const subgroupMap = this.runtime().cosmaSubgroupMap;
     const sd = benchmarks.benchmarks?.[siteName];
     const siteArch = sd?.archetype ?? benchmarks.siteArchetypes?.[siteName]?.[0] ?? '';
-    const siteSg   = sd?.subgroup  ?? COSMA_SUBGROUP_MAP[siteName] ?? '';
+    const siteSg   = sd?.subgroup  ?? subgroupMap[siteName] ?? '';
 
     const peers: IPnlDrillInitiative[] = [];
     for (const [s, b] of Object.entries(row.sites)) {
@@ -338,16 +369,16 @@ export class PnlRecService {
     for (const i of peers) {
       const peerBm = benchmarks.benchmarks?.[i._peerSite];
       const peerArch = peerBm?.archetype ?? benchmarks.siteArchetypes?.[i._peerSite]?.[0] ?? '';
-      const peerSg   = peerBm?.subgroup  ?? COSMA_SUBGROUP_MAP[i._peerSite] ?? '';
+      const peerSg   = peerBm?.subgroup  ?? subgroupMap[i._peerSite] ?? '';
       let r = 0;
       if (siteArch && peerArch === siteArch) r += 3;
       if (siteSg   && peerSg   === siteSg)   r += 2;
-      r += Math.min(2, (i.nrb || 0) / 500_000);
+      r += Math.min(2, (i.nrb || 0) / peerNrbScale);
       i._relevance = r;
     }
 
     peers.sort((a, b) => (b._relevance ?? 0) - (a._relevance ?? 0) || (b.nrb || 0) - (a.nrb || 0));
-    return peers.slice(0, maxItems);
+    return peers.slice(0, effectiveMaxItems);
   }
 
   /**
@@ -367,13 +398,21 @@ export class PnlRecService {
     rowIndex: Record<string, IHeatmapRow>,
     inits: ReadonlyArray<IInitiative>,
     dlEvidenceBySite: Record<string, Set<string>>,
-    maxResults = 3,
+    maxResults?: number,
   ): IPnlRecCard[] {
+    const runtime = this.runtime();
+    const scoreCfg = runtime.scoring;
+    const subgroupMap = runtime.cosmaSubgroupMap;
+    const effectiveMaxResults = maxResults ?? scoreCfg.maxSiteRecommendations;
+    const minPeerSites = Math.max(1, Math.floor(scoreCfg.minPeerSites || 2));
+    const topPeerMinCount = Math.max(1, Math.floor(scoreCfg.opportunityTopPeerMinCount || 3));
+    const topPeerFraction = scoreCfg.opportunityTopPeerFraction > 0 ? scoreCfg.opportunityTopPeerFraction : 0.3;
+    const bestPeersCount = Math.max(1, Math.floor(scoreCfg.bestPeersCount || 5));
     const sd: IPnlSiteBenchmark | undefined = benchmarks.benchmarks?.[siteName];
     if (!sd) return [];
 
     const siteArch = sd.archetype ?? benchmarks.siteArchetypes?.[siteName]?.[0] ?? '';
-    const siteSg   = sd.subgroup  ?? COSMA_SUBGROUP_MAP[siteName] ?? '';
+    const siteSg   = sd.subgroup  ?? subgroupMap[siteName] ?? '';
     const siteCost = this.getSiteCostBase(siteName, benchmarks);
     const gaps     = this.getSitePnlGaps(siteName, benchmarks);
     const allBenchSites = Object.keys(benchmarks.benchmarks ?? {});
@@ -393,7 +432,7 @@ export class PnlRecService {
       const isWhitespace = !siteData || siteCount === 0;
 
       const peerSites = Object.keys(row.sites).filter(s => s !== siteName);
-      if (peerSites.length < 2) continue;
+      if (peerSites.length < minPeerSites) continue;
 
       const peerNrbs       = peerSites.map(s => row.sites[s]!.nrb);
       const peerSorted     = peerNrbs.slice().sort((a, b) => a - b);
@@ -436,7 +475,7 @@ export class PnlRecService {
       let regionMatchPct = 0;
       if (siteSg) {
         const regionPeers = peerSites.filter(s => {
-          const psg = benchmarks.benchmarks?.[s]?.subgroup ?? COSMA_SUBGROUP_MAP[s] ?? '';
+          const psg = benchmarks.benchmarks?.[s]?.subgroup ?? subgroupMap[s] ?? '';
           return psg === siteSg;
         });
         regionMatchPct = regionPeers.length / Math.max(1, peerSites.length);
@@ -456,12 +495,14 @@ export class PnlRecService {
           const topPeers = refPeers
             .slice()
             .sort((a, b) => b.nrb - a.nrb)
-            .slice(0, Math.max(3, Math.ceil(refPeers.length * 0.3)));
+            .slice(0, Math.max(topPeerMinCount, Math.ceil(refPeers.length * topPeerFraction)));
           const avgRefNrb  = topPeers.reduce((a, p) => a + p.nrb, 0)  / topPeers.length;
           const avgRefCost = topPeers.reduce((a, p) => a + p.cost, 0) / topPeers.length;
           if (avgRefCost > 0) {
             const scaled = avgRefNrb * (siteCost.total / avgRefCost);
-            opportunity = scaled * (isWhitespace ? 0.6 : 0.4);
+            opportunity = scaled * (isWhitespace
+              ? scoreCfg.opportunityWhitespaceFactor
+              : scoreCfg.opportunityUnderrepresentedFactor);
           }
         }
       }
@@ -469,7 +510,7 @@ export class PnlRecService {
       const bestPeers = peerSites
         .slice()
         .sort((a, b) => row.sites[b]!.nrb - row.sites[a]!.nrb)
-        .slice(0, 5);
+        .slice(0, bestPeersCount);
 
       scored.push({
         rank: 0, // assigned after sort
@@ -495,20 +536,20 @@ export class PnlRecService {
     const maxOpp = Math.max(1, ...scored.map(s => s.opportunity));
     for (const s of scored) {
       const normOpp = s.opportunity / maxOpp;
-      const wsBonus = s.isWhitespace ? 0.05 : 0;
-      s.score = normOpp * 0.35
-        + s.nrbShortfall * 0.15
-        + Math.min(1, s.pnlGap * 5) * 0.20
-        + s.archMatchPct * 0.15
-        + s.regionMatchPct * 0.10
+      const wsBonus = s.isWhitespace ? scoreCfg.whitespaceBonusWeight : 0;
+      s.score = normOpp * scoreCfg.opportunityWeight
+        + s.nrbShortfall * scoreCfg.nrbShortfallWeight
+        + Math.min(1, s.pnlGap * scoreCfg.pnlGapScaleFactor) * scoreCfg.pnlRelevanceWeight
+        + s.archMatchPct * scoreCfg.archetypeMatchWeight
+        + s.regionMatchPct * scoreCfg.regionMatchWeight
         + wsBonus;
     }
 
     scored.sort((a, b) => b.score - a.score);
-    const top = scored.slice(0, maxResults);
+    const top = scored.slice(0, effectiveMaxResults);
     top.forEach((s, i) => {
       s.rank = i + 1;
-      s.drillInits = this.selectDrilldownInits(s.row, siteName, benchmarks, 25);
+      s.drillInits = this.selectDrilldownInits(s.row, siteName, benchmarks, scoreCfg.maxDrilldownItems);
     });
     return top;
   }
@@ -522,6 +563,7 @@ export class PnlRecService {
     benchmarks: IPnlBenchmarks,
     inits: ReadonlyArray<IInitiative>,
   ): { site: string; archetype?: string; subgroup?: string; costBase?: ISiteCostBase; recs: IPnlRecCard[] }[] {
+    const runtime = this.runtime();
     const rowIndex = this.buildHeatmapRowIndex(inits);
     const dlEvidenceBySite = this.buildSiteDlMfgEvidence(inits);
 
@@ -531,9 +573,16 @@ export class PnlRecService {
     for (const site of allBenchSites) {
       const sd = benchmarks.benchmarks[site];
       const archetype = sd?.archetype ?? benchmarks.siteArchetypes?.[site]?.[0];
-      const subgroup  = sd?.subgroup  ?? COSMA_SUBGROUP_MAP[site];
+      const subgroup  = sd?.subgroup  ?? runtime.cosmaSubgroupMap[site];
       const costBase  = this.getSiteCostBase(site, benchmarks);
-      const recs      = this.computeForSite(site, benchmarks, rowIndex, inits, dlEvidenceBySite, 3);
+      const recs      = this.computeForSite(
+        site,
+        benchmarks,
+        rowIndex,
+        inits,
+        dlEvidenceBySite,
+        runtime.scoring.maxSiteRecommendations,
+      );
       out.push({ site, archetype, subgroup, costBase, recs });
     }
 

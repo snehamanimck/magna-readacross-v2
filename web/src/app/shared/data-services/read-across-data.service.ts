@@ -26,6 +26,24 @@ import {
 export class ReadAcrossDataService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = environment.apiBaseUrl;
+  private readonly endpoints = {
+    initiatives: '/Initiatives',
+    initiativesFilterOptions: '/Initiatives/filter-options',
+    initiativesSubgroups: '/Initiatives/subgroups',
+    aggregatesBuckets: '/Aggregates/buckets',
+    aggregatesHeatmap: '/Aggregates/heatmap',
+    pnl: '/Pnl',
+    pnlSummary: '/Pnl/summary',
+    pnlBenchmarks: '/Pnl/benchmarks',
+    insightsThoughtStarters: '/Insights/thought-starters',
+    insightsPnlRecommendations: '/Insights/pnl-recommendations',
+    insightsKnowledgeCenter: '/Insights/knowledge-center',
+    insightsVideoLibrary: '/Insights/video-library',
+    insightsPriorityInitiatives: '/Insights/priority-initiatives',
+    insightsArchetypes: '/Insights/archetypes',
+    insightsSiteArchetypes: '/Insights/site-archetypes',
+    insightsDashboardConfig: '/Insights/dashboard-config',
+  } as const;
 
   async getInitiativesAsync(filter?: {
     workstream?: string[];
@@ -35,14 +53,14 @@ export class ReadAcrossDataService {
     archetype?: string[];
   }): Promise<IInitiative[]> {
     return firstValueFrom(
-      this.http.get<IInitiative[]>(`${this.baseUrl}/Initiatives`, {
+      this.http.get<IInitiative[]>(this.url('initiatives'), {
         params: this.toParams(filter ?? {}),
       }),
     );
   }
 
   async getFilterOptionsAsync(): Promise<IFilterOptions> {
-    return firstValueFrom(this.http.get<IFilterOptions>(`${this.baseUrl}/Initiatives/filter-options`));
+    return firstValueFrom(this.http.get<IFilterOptions>(this.url('initiativesFilterOptions')));
   }
 
   /**
@@ -51,12 +69,12 @@ export class ReadAcrossDataService {
    * on each Wave table — populated by `sql/05_backfill_subgroups.sql`.
    */
   async getSubgroupsAsync(): Promise<ISubgroup[]> {
-    return firstValueFrom(this.http.get<ISubgroup[]>(`${this.baseUrl}/Initiatives/subgroups`));
+    return firstValueFrom(this.http.get<ISubgroup[]>(this.url('initiativesSubgroups')));
   }
 
   async getBucketsAsync(workstreams?: string[]): Promise<IBucketRow[]> {
     return firstValueFrom(
-      this.http.get<IBucketRow[]>(`${this.baseUrl}/Aggregates/buckets`, {
+      this.http.get<IBucketRow[]>(this.url('aggregatesBuckets'), {
         params: this.toParams({ workstream: workstreams }),
       }),
     );
@@ -64,7 +82,7 @@ export class ReadAcrossDataService {
 
   async getHeatmapAsync(workstreams?: string[]): Promise<IHeatmapCell[]> {
     return firstValueFrom(
-      this.http.get<IHeatmapCell[]>(`${this.baseUrl}/Aggregates/heatmap`, {
+      this.http.get<IHeatmapCell[]>(this.url('aggregatesHeatmap'), {
         params: this.toParams({ workstream: workstreams }),
       }),
     );
@@ -80,7 +98,7 @@ export class ReadAcrossDataService {
     skip?: number;
   }): Promise<IPnlEntry[]> {
     return firstValueFrom(
-      this.http.get<IPnlEntry[]>(`${this.baseUrl}/Pnl`, {
+      this.http.get<IPnlEntry[]>(this.url('pnl'), {
         params: this.toParams(filter ?? {}),
       }),
     );
@@ -92,7 +110,7 @@ export class ReadAcrossDataService {
     time?: string;
   }): Promise<IPnlSummaryRow[]> {
     return firstValueFrom(
-      this.http.get<IPnlSummaryRow[]>(`${this.baseUrl}/Pnl/summary`, {
+      this.http.get<IPnlSummaryRow[]>(this.url('pnlSummary'), {
         params: this.toParams(filter ?? {}),
       }),
     );
@@ -104,35 +122,35 @@ export class ReadAcrossDataService {
    * `Resources/pnl-benchmarks.json` shipped with the API image.
    */
   async getPnlBenchmarksAsync(): Promise<IPnlBenchmarks> {
-    return firstValueFrom(this.http.get<IPnlBenchmarks>(`${this.baseUrl}/Pnl/benchmarks`));
+    return firstValueFrom(this.http.get<IPnlBenchmarks>(this.url('pnlBenchmarks')));
   }
 
   async getThoughtStartersAsync(): Promise<IThoughtStarter[]> {
-    return firstValueFrom(this.http.get<IThoughtStarter[]>(`${this.baseUrl}/Insights/thought-starters`));
+    return firstValueFrom(this.http.get<IThoughtStarter[]>(this.url('insightsThoughtStarters')));
   }
 
   async getPnlRecommendationsAsync(): Promise<IPnlRecommendation[]> {
-    return firstValueFrom(this.http.get<IPnlRecommendation[]>(`${this.baseUrl}/Insights/pnl-recommendations`));
+    return firstValueFrom(this.http.get<IPnlRecommendation[]>(this.url('insightsPnlRecommendations')));
   }
 
   async getKnowledgeCenterAssetsAsync(): Promise<IKnowledgeCenterAsset[]> {
-    return firstValueFrom(this.http.get<IKnowledgeCenterAsset[]>(`${this.baseUrl}/Insights/knowledge-center`));
+    return firstValueFrom(this.http.get<IKnowledgeCenterAsset[]>(this.url('insightsKnowledgeCenter')));
   }
 
   async getVideoLibraryAssetsAsync(): Promise<IVideoLibraryAsset[]> {
-    return firstValueFrom(this.http.get<IVideoLibraryAsset[]>(`${this.baseUrl}/Insights/video-library`));
+    return firstValueFrom(this.http.get<IVideoLibraryAsset[]>(this.url('insightsVideoLibrary')));
   }
 
   async getPriorityInitiativesAsync(): Promise<IPriorityInitiative[]> {
-    return firstValueFrom(this.http.get<IPriorityInitiative[]>(`${this.baseUrl}/Insights/priority-initiatives`));
+    return firstValueFrom(this.http.get<IPriorityInitiative[]>(this.url('insightsPriorityInitiatives')));
   }
 
   async getArchetypeDefinitionsAsync(): Promise<IArchetypeDefinition[]> {
-    return firstValueFrom(this.http.get<IArchetypeDefinition[]>(`${this.baseUrl}/Insights/archetypes`));
+    return firstValueFrom(this.http.get<IArchetypeDefinition[]>(this.url('insightsArchetypes')));
   }
 
   async getSiteArchetypesAsync(): Promise<ISiteArchetype[]> {
-    return firstValueFrom(this.http.get<ISiteArchetype[]>(`${this.baseUrl}/Insights/site-archetypes`));
+    return firstValueFrom(this.http.get<ISiteArchetype[]>(this.url('insightsSiteArchetypes')));
   }
 
   /**
@@ -140,7 +158,11 @@ export class ReadAcrossDataService {
    * Pulled once at app boot — see `IDashboardConfig`.
    */
   async getDashboardConfigAsync(): Promise<IDashboardConfig> {
-    return firstValueFrom(this.http.get<IDashboardConfig>(`${this.baseUrl}/Insights/dashboard-config`));
+    return firstValueFrom(this.http.get<IDashboardConfig>(this.url('insightsDashboardConfig')));
+  }
+
+  private url(key: keyof typeof this.endpoints): string {
+    return `${this.baseUrl}${this.endpoints[key]}`;
   }
 
   private toParams(obj: Record<string, unknown>): HttpParams {

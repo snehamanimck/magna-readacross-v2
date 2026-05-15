@@ -232,7 +232,46 @@ docker exec -i magna-readacross-sql /opt/mssql-tools18/bin/sqlcmd \
 
 ---
 
-## 5) Core maintenance commands
+## 5) Runtime mapping/recommendation config tables
+
+These tables drive `GET /api/Insights/dashboard-config` under:
+
+- `mappingConfig.magnaDivisionAliases`
+- `mappingConfig.recommendationConfig`
+
+### Tables
+
+- `readacross.MagnaDivisionAliases`
+- `readacross.CosmaSubgroupMap`
+- `readacross.ArchetypeMfgAllowed`
+- `readacross.SpendCategoryMetricMap`
+- `readacross.RecommendationScoring`
+
+Legacy `readacross.UiRuntime*` tables are retired and removed by:
+
+- `sql/15_ui_runtime_tables.sql`
+
+### Sample value checks
+
+```bash
+docker exec -i magna-readacross-sql /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Magna#Seed2026!' -d MagnaReadAcross -C -Q \
+  "SELECT TOP (10) * FROM readacross.MagnaDivisionAliases ORDER BY WorkstreamName;
+   SELECT TOP (10) * FROM readacross.CosmaSubgroupMap ORDER BY SiteName;
+   SELECT TOP (10) * FROM readacross.ArchetypeMfgAllowed ORDER BY ArchetypeKey, MfgProcess;
+   SELECT TOP (10) * FROM readacross.SpendCategoryMetricMap ORDER BY SpendCategory, MetricKey;
+   SELECT TOP (1)  * FROM readacross.RecommendationScoring ORDER BY UpdatedAtUtc DESC;"
+```
+
+### After changes
+
+- Restart API (`make ingest-and-restart` or `docker compose ... up -d --build api`)
+- Verify endpoint:
+  - `curl -s http://localhost:5080/api/insights/dashboard-config`
+
+---
+
+## 6) Core maintenance commands
 
 ```bash
 make up
@@ -248,7 +287,7 @@ make sql-shell
 
 ---
 
-## 6) Troubleshooting quick checks
+## 7) Troubleshooting quick checks
 
 - `POST /api/Pnl/recompute` returns `404`
   - Rebuild/restart API container.
